@@ -1,0 +1,24 @@
+{
+  "name": "@pactline/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@pactline/domain": "workspace:*",
+    "@pactline/incident-runtime": "workspace:*",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@pactline/typescript-config": "workspace:*",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
