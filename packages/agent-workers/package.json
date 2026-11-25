@@ -1,0 +1,22 @@
+{
+  "name": "@pactline/agent-workers",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@langchain/core": "^0.3.0",
+    "@langchain/openai": "^0.3.0",
+    "@pactline/domain": "workspace:*",
+    "@pactline/db": "workspace:*",
+    "@pactline/equipment-module": "workspace:*",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@pactline/typescript-config": "workspace:*",
+    "typescript": "^5.7.0"
+  }
+}
