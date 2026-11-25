@@ -1,0 +1,17 @@
+{
+  "_note": "SYNTHETIC SANDBOX EVENT — not a real vendor communication",
+  "event_id": "evt-001",
+  "type": "VendorCommitmentChanged",
+  "project_id": "proj-hvac-demo-001",
+  "subject_type": "POLine",
+  "subject_id": "pol-pump-001",
+  "occurred_at": "2026-12-01T09:00:00Z",
+  "received_at": "2026-12-01T09:05:00Z",
+  "source": "sandbox-vendor-email",
+  "payload": {
+    "previous_arrival_date": "2026-12-28",
+    "revised_arrival_date": "2027-01-07",
+    "reason": "Manufacturing backlog at supplier facility",
+    "vendor_contact": "sandbox-contact@example-vendor.com"
+  }
+}

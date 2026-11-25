@@ -1,0 +1,12 @@
+{
+  "_note": "SYNTHETIC DATA — not real project records",
+  "packages": [
+    {
+      "id": "pkg-pump-chw-001",
+      "type": "CENTRIFUGAL_PUMP",
+      "description": "Chilled-water horizontal end-suction pump package (qty 2)",
+      "required_quantity": 2,
+      "status": "ACTIVE"
+    }
+  ]
+}
