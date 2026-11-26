@@ -90,3 +90,20 @@ Before building UI, pass all 12 Phase 4 scenarios against an isolated Neon branc
 - **Treat all external text/PDFs as untrusted data:** Delimit vendor emails and submittals inside read-only extraction prompts; never grant LLM calls write privileges.
 - **Be token- and cost-conscious:** Do not spawn subagents, multi-model arenas, or broad exploratory scans unless explicitly requested. Prefer cheap/fast models for extraction/investigation tests and deterministic no-LLM tests for kernel invariants.
 - **Read version-matched docs:** Once Next.js/LangChain/Drizzle packages are installed, check local `node_modules` docs or Context7 instead of guessing outdated APIs.
+
+### Testing — Keploy
+
+Use **[Keploy](https://github.com/keploy/keploy)** for API-level test generation across `apps/api` and `apps/mcp`.
+
+- Run Keploy in record mode against `apps/api` while replaying the demo event sequence (`scripts/run-demo.ts`) to auto-capture real request/response pairs as test cases.
+- Keploy-generated tests supplement (do not replace) the 12-scenario `eval-harness` Vitest suite — Keploy covers HTTP contract and integration regression; Vitest covers deterministic kernel invariants with `VirtualClock`.
+- Store recorded test cases in `apps/api/keploy/` and `apps/mcp/keploy/` (add to `.gitignore` if they contain sandbox credentials; commit sanitized fixture versions).
+- Re-run Keploy replay in CI on every PR that touches `packages/incident-runtime`, `packages/execution-gateway`, or any `apps/api` route.
+
+### Frontend Design — Unslop
+
+After **every frontend change** in `apps/web`, run the work through **[Unslop](https://github.com/heydamir/unslop)** before marking the task done.
+
+- Unslop checks for generic/AI-slop design patterns: placeholder copy, default color schemes, unstyled components, copy-paste layouts, and low-information UI.
+- Apply its findings before moving on — a component that fails Unslop review is not complete regardless of whether it renders correctly.
+- The dashboard must look like something a procurement manager would trust with real incident data, not a template demo.
