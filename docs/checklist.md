@@ -103,6 +103,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
   - ⬜ New projected dates
 - ⬜ Handle calendar constraints (working days only)
 - ⬜ Unit tests with known schedule → known results
+- ⬜ **[Keploy](https://github.com/keploy/keploy):** record `POST /api/events/ingest` calls during demo replay → auto-generate regression tests stored in `apps/api/keploy/`
 
 ### 2C — Incident State Machine
 - ⬜ 👤 ___________ — Implement incident lifecycle manager
@@ -148,6 +149,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ⬜ Return evidence references for each finding
 - ⬜ No extrapolation beyond validated data range → UNKNOWN
 - ⬜ Unit tests with known product data → known compliance results
+- ⬜ **[Keploy](https://github.com/keploy/keploy):** record `check_compliance` MCP tool calls → replay suite in `apps/mcp/keploy/`
 
 ---
 
@@ -215,14 +217,18 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 ## Phase 4: Frontend — Operator Dashboard
 > **Can be picked up by:** 1–2 people | **Depends on:** Phase 2 API endpoints (can start with mock data) | **Est. effort:** 3–4 days
 > **What this delivers:** The visual dashboard for demo and human-in-the-loop interaction.
+>
+> **Design rule — [Unslop](https://github.com/heydamir/unslop):** Every component below must pass an Unslop review before it is marked done. Run Unslop after each section completes. A component that renders but looks like a default template is **not done**. The dashboard must look like something a procurement manager would trust with real incident data.
 
 ### 4A — Project Setup & Layout
-- ⬜ 👤 ___________ — Initialize frontend project
-- ⬜ Set up Next.js / React + Vite project
-- ⬜ Install shadcn/ui + Tailwind CSS
-- ⬜ Create app layout: sidebar navigation + main content area
-- ⬜ Define routes: Dashboard, Incident Detail, Schedule, Compliance, Approvals, Agent Log
-- ⬜ Set up API client (axios / fetch wrapper) pointing to backend
+- ✅ 👤 ___________ — Initialize frontend project (`apps/frontend`)
+- ✅ Set up Next.js / React + Vite project — Next.js 15 App Router, React 19, TypeScript strict
+- ✅ Install shadcn/ui + Tailwind CSS — Tailwind v4 with a custom token set; shadcn components are owned source in `src/components/ui/` (button, dialog, tabs, navigation-menu, breadcrumb, select, input, label, checkbox), not the default theme
+- ✅ Create app layout: sidebar navigation + main content area — `src/app/(app)/layout.tsx` wraps `AppShell`: fixed sidebar on desktop, slide-in drawer on mobile, sticky header with breadcrumbs and theme toggle, light and dark
+- ✅ Define routes: Dashboard, Incident Detail, Schedule, Compliance, Approvals, Agent Log — `/dashboard`, `/incidents/[id]`, `/schedule`, `/compliance`, `/approvals`, `/agent-log`; route metadata lives in `src/lib/nav.ts`
+- ✅ Set up API client (axios / fetch wrapper) pointing to backend — `src/lib/api.ts` (typed `api`, `apiGet`, `apiPost`, `ApiError`, timeout, optional Zod response validation); base URL from `NEXT_PUBLIC_API_URL` (default `http://localhost:3001`); `apps/api` now allows the web origin via CORS (`WEB_ORIGIN`); sidebar shows live `/health` status
+- ✅ **Unslop check:** layout, typography, color palette, sidebar — own palette and type (Cormorant Garamond, Instrument Sans, IBM Plex Mono), no default shadcn theme, no emoji, no placeholder copy. Screens show an honest empty state naming the endpoint they will read, not invented records. Checked in light, dark and at 390px.
+- 🟡 Note for 4B-4H: each screen body is currently the shared `Pending` state from `src/components/app/screen.tsx`; replace it with the real view as each section is built.
 
 ### 4B — Incident Dashboard (Main View)
 - ⬜ 👤 ___________ — Build the central incident list/card view
@@ -232,6 +238,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ⬜ Sort by: urgency (days to deadline), severity, last updated
 - ⬜ Click-through to incident detail view
 - ⬜ Real-time updates via WebSocket (`WS /ws/incidents`)
+- ⬜ **Unslop check:** cards carry real information density — no "Lorem ipsum", no grey boxes, severity colors are deliberate not default
 
 ### 4C — Incident Detail & Timeline View
 - ⬜ 👤 ___________ — Build deep-dive incident page
@@ -241,6 +248,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ⬜ Expandable detail for each entry (full evidence, raw data)
 - ⬜ Current status and next expected action prominently displayed
 - ⬜ Specialist delegation visualization (which agent did what, when)
+- ⬜ **Unslop check:** timeline is readable at a glance — not a wall of JSON, not a generic list
 
 ### 4D — Schedule Impact Visualization
 - ⬜ 👤 ___________ — Build schedule/Gantt component
@@ -249,6 +257,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ⬜ Highlight: affected activities (red), float consumed (yellow), critical path
 - ⬜ Show before/after comparison when delay is introduced
 - ⬜ Tooltip with activity details on hover
+- ⬜ **Unslop check:** chart labels are legible, colors are purposeful, axis units are visible — not a default Recharts demo
 
 ### 4E — Compliance Matrix View
 - ⬜ 👤 ___________ — Build requirement comparison table
@@ -258,6 +267,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ⬜ Mandatory requirements visually distinct from optional
 - ⬜ Clickable evidence references for each finding
 - ⬜ Confidence score displayed per finding
+- ⬜ **Unslop check:** table is scannable — column widths sized to content, mandatory vs optional visually obvious, not a plain HTML table with borders
 
 ### 4F — Recovery Plan Comparison
 - ⬜ 👤 ___________ — Build side-by-side recovery option view
@@ -265,6 +275,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ⬜ Card per option: projected date, cost delta, risk level, required approvals, blockers
 - ⬜ Visual comparison (bar chart or table)
 - ⬜ Highlight recommended option with reasoning
+- ⬜ **Unslop check:** recommended option is visually distinct without being garish, blocker reasons are human-readable not raw enum values
 
 ### 4G — Approval Queue
 - ⬜ 👤 ___________ — Build human-in-the-loop approval interface
@@ -273,6 +284,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ⬜ Action buttons: Approve / Reject / Request More Info
 - ⬜ POST decision to `POST /api/approvals/{id}/decide`
 - ⬜ Confirmation and status update after action
+- ⬜ **Unslop check:** approve/reject actions are clearly weighted (destructive action styled differently), context panel shows enough to make a real decision
 
 ### 4H — Agent Activity Log
 - ⬜ 👤 ___________ — Build real-time agent action feed
@@ -281,6 +293,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ⬜ Each entry: timestamp, agent role, action type, summary, source/evidence link
 - ⬜ Filter by: agent role, action type, incident
 - ⬜ This satisfies Track 01 requirement: "Logs every action it takes and every specialist it calls"
+- ⬜ **Unslop check:** log entries are legible at speed — role badges, action types, and summaries scan without reading every word
 
 ---
 
@@ -290,7 +303,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 
 ### 5A — MCP Server Implementation
 - ⬜ 👤 ___________ — Expose backend as MCP server (required by hackathon)
-- ⬜ Install and configure MCP SDK (Python)
+- ⬜ Install and configure MCP SDK (TypeScript — `@modelcontextprotocol/sdk` in `apps/mcp`)
 - ⬜ Implement MCP tools:
   - ⬜ `analyze_schedule_impact` — calls schedule engine
   - ⬜ `investigate_procurement_issue` — calls investigation agent
@@ -303,6 +316,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ⬜ Confidence scores in all outputs
 - ⬜ Source citations in all findings
 - ⬜ Test MCP server with direct calls (verify Amber-callable)
+- ⬜ **[Keploy](https://github.com/keploy/keploy):** record all 7 MCP tool calls during E2E demo replay → regression suite in `apps/mcp/keploy/`
 
 ### 5B — End-to-End Pipeline Wiring
 - ⬜ 👤 ___________ — Connect all systems for the demo flow
