@@ -150,6 +150,60 @@ describe("computeSchedule", () => {
   });
 });
 
+describe("milestones and negative lags", () => {
+  const network = (
+    activities: Array<[string, number]>,
+    dependencies: Array<[string, string, number?]>,
+  ): ScheduleNetwork => ({
+    startDate: "2026-11-30",
+    calendar: CALENDAR,
+    activities: activities.map(([name, durationWorkdays]) => ({ id: id(name), durationWorkdays })),
+    dependencies: dependencies.map(([pred, succ, lagWorkdays]) => ({
+      predecessorId: id(pred),
+      successorId: id(succ),
+      lagWorkdays,
+    })),
+  });
+
+  it("does not move a milestone forecast for its current date", () => {
+    const net = network([["a", 1], ["m", 0], ["b", 1]], [["a", "m"], ["m", "b"]]);
+    expect(computeSchedule(net).activities.get(id("m"))!.earlyFinish).toBe("2026-12-01");
+    const unchanged = analyzeDelay(net, { activityId: id("m"), forecastFinishDate: "2026-12-01" });
+    expect(unchanged).toMatchObject({ impact: "NONE", slipWorkdays: 0, delayedActivities: [] });
+    const later = analyzeDelay(net, { activityId: id("m"), forecastFinishDate: "2026-12-02" });
+    expect(later).toMatchObject({ impact: "CRITICAL", slipWorkdays: 1, projectedFinish: "2026-12-02" });
+    expect(later.projectFinish).toEqual({ baseline: "2026-12-01", projected: "2026-12-02", slipWorkdays: 1 });
+  });
+
+  it("includes a final milestone in the project finish and inclusive deadline", () => {
+    const net = network([["a", 1], ["m", 0]], [["a", "m"]]);
+    const result = computeSchedule(net);
+    expect(result.projectFinish).toBe("2026-12-01");
+    expect(result.activities.get(id("m"))).toMatchObject({ lateFinish: "2026-12-01", totalFloatWorkdays: 0 });
+    const onDeadline = computeSchedule(net, { deadline: "2026-12-01" }).activities.get(id("m"));
+    expect(onDeadline).toMatchObject({ lateFinish: "2026-12-01", totalFloatWorkdays: 0, critical: true });
+    const dayToSpare = computeSchedule(net, { deadline: "2026-12-02" }).activities.get(id("m"));
+    expect(dayToSpare).toMatchObject({ lateFinish: "2026-12-02", totalFloatWorkdays: 1 });
+  });
+
+  it("never gives an unlinked milestone a late date past the project finish", () => {
+    const result = computeSchedule(network([["a", 5], ["p", 0]], []));
+    expect(result.projectFinish).toBe("2026-12-04");
+    expect(result.activities.get(id("p"))).toMatchObject({ lateFinish: "2026-12-04", totalFloatWorkdays: 4 });
+  });
+
+  it("caps late finishes at the project finish under negative lags", () => {
+    const net = network([["a", 10], ["b", 1]], [["a", "b", -9]]);
+    const result = computeSchedule(net);
+    expect(result.projectFinish).toBe("2026-12-11");
+    expect(result.activities.get(id("a"))).toMatchObject({ totalFloatWorkdays: 0, critical: true });
+    expect(result.activities.get(id("b"))).toMatchObject({ earlyStart: "2026-12-01", totalFloatWorkdays: 8 });
+    const delayed = analyzeDelay(net, { activityId: id("a"), forecastFinishDate: "2026-12-14" });
+    expect(delayed).toMatchObject({ impact: "CRITICAL", remainingFloatWorkdays: -1 });
+    expect(delayed.projectFinish).toEqual({ baseline: "2026-12-11", projected: "2026-12-14", slipWorkdays: 1 });
+  });
+});
+
 describe("analyzeDelay", () => {
   it("absorbs a delay on an activity with float (scenario 1: no false critical)", () => {
     const analysis = analyzeDelay(PUMP_SCHEDULE, { activityId: id("site-prep"), forecastFinishDate: "2026-12-14" });

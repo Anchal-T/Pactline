@@ -74,7 +74,8 @@ export interface Solved {
   readonly calendar: WorkCalendar;
   readonly order: readonly ActivityId[];
   readonly timings: ReadonlyMap<ActivityId, Timing>;
-  readonly projectFinishX: number;
+  /** Index of the inclusive project finish day. */
+  readonly projectFinishDay: number;
   readonly result: ScheduleResult;
 }
 
@@ -117,17 +118,25 @@ export function solve(network: ScheduleNetwork, options: ScheduleOptions = {}): 
     succs.get(dep.predecessorId)!.push({ id: dep.successorId, lag });
   }
 
+  // Lower bounds on early start from constraints and forecasts. A milestone sits on
+  // its index's day, so a milestone forecast maps to that day rather than past it.
   const minStart = new Map<ActivityId, number>();
+  const raiseMinStart = (id: ActivityId, index: number): void => {
+    minStart.set(id, Math.max(index, minStart.get(id) ?? -Infinity));
+  };
   for (const constraint of network.constraints ?? []) {
     requireKnown(constraint.activityId, "Constraint");
-    const index = calendar.indexOnOrAfter(constraint.date);
-    minStart.set(constraint.activityId, Math.max(index, minStart.get(constraint.activityId) ?? 0));
+    raiseMinStart(constraint.activityId, calendar.indexOnOrAfter(constraint.date));
   }
-  const minFinishX = new Map<ActivityId, number>();
   for (const forecast of options.forecastFinishes ?? []) {
     requireKnown(forecast.activityId, "Forecast");
-    const endX = calendar.endIndexThrough(forecast.date);
-    minFinishX.set(forecast.activityId, Math.max(endX, minFinishX.get(forecast.activityId) ?? 0));
+    const duration = durations.get(forecast.activityId)!;
+    raiseMinStart(
+      forecast.activityId,
+      duration === 0
+        ? calendar.indexOnOrAfter(forecast.date)
+        : calendar.endIndexThrough(forecast.date) - duration,
+    );
   }
 
   const order = topologicalOrder(durations, preds, succs);
@@ -135,26 +144,27 @@ export function solve(network: ScheduleNetwork, options: ScheduleOptions = {}): 
   const es = new Map<ActivityId, number>();
   const efx = new Map<ActivityId, number>();
   for (const id of order) {
-    const duration = durations.get(id)!;
-    let start = minStart.get(id) ?? 0;
+    let start = Math.max(0, minStart.get(id) ?? 0);
     for (const pred of preds.get(id)!) start = Math.max(start, efx.get(pred.id)! + pred.lag);
-    const forecastEnd = minFinishX.get(id);
-    if (forecastEnd !== undefined) start = Math.max(start, forecastEnd - duration);
     es.set(id, start);
-    efx.set(id, start + duration);
+    efx.set(id, start + durations.get(id)!);
   }
 
-  const projectFinishX = Math.max(0, ...efx.values());
-  const terminalX = options.deadline === undefined ? projectFinishX : calendar.endIndexThrough(options.deadline);
+  const projectFinishDay =
+    order.length === 0 ? 0 : Math.max(...order.map((id) => lastDay(es.get(id)!, efx.get(id)!)));
+  const terminalDay =
+    options.deadline === undefined ? projectFinishDay : calendar.endIndexThrough(options.deadline) - 1;
 
+  // Every activity is capped at the terminal day, not only those without successors:
+  // negative lags could otherwise let an activity finish past the project finish.
   const ls = new Map<ActivityId, number>();
   const lfx = new Map<ActivityId, number>();
   for (const id of [...order].reverse()) {
-    const successors = succs.get(id)!;
-    const finish =
-      successors.length === 0 ? terminalX : Math.min(...successors.map((s) => ls.get(s.id)! - s.lag));
+    const duration = durations.get(id)!;
+    let finish = duration === 0 ? terminalDay : terminalDay + 1;
+    for (const succ of succs.get(id)!) finish = Math.min(finish, ls.get(succ.id)! - succ.lag);
     lfx.set(id, finish);
-    ls.set(id, finish - durations.get(id)!);
+    ls.set(id, finish - duration);
   }
 
   const floats = order.map((id) => ls.get(id)! - es.get(id)!);
@@ -191,19 +201,23 @@ export function solve(network: ScheduleNetwork, options: ScheduleOptions = {}): 
     calendar,
     order,
     timings,
-    projectFinishX,
+    projectFinishDay,
     result: {
       projectStart: calendar.dateOf(0),
-      projectFinish: finishDate(calendar, 0, projectFinishX),
+      projectFinish: calendar.dateOf(projectFinishDay),
       activities,
       criticalPath,
     },
   };
 }
 
-/** Inclusive finish date; a zero-duration milestone finishes on its start day. */
+/** Index of the inclusive finish day; a zero-duration milestone finishes on its start day. */
+function lastDay(start: number, endX: number): number {
+  return endX > start ? endX - 1 : start;
+}
+
 export function finishDate(calendar: WorkCalendar, start: number, endX: number): string {
-  return calendar.dateOf(endX > start ? endX - 1 : start);
+  return calendar.dateOf(lastDay(start, endX));
 }
 
 function topologicalOrder(

@@ -92,7 +92,7 @@ export function analyzeDelay(
     if (after.critical && !before.critical) newlyCriticalActivityIds.push(id);
   }
 
-  const projectSlip = projected.projectFinishX - baseline.projectFinishX;
+  const projectSlip = projected.projectFinishDay - baseline.projectFinishDay;
 
   return {
     impact: classify(slip, remainingFloat, warningFloat),
