@@ -221,13 +221,14 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 > **Design rule — [Unslop](https://github.com/heydamir/unslop):** Every component below must pass an Unslop review before it is marked done. Run Unslop after each section completes. A component that renders but looks like a default template is **not done**. The dashboard must look like something a procurement manager would trust with real incident data.
 
 ### 4A — Project Setup & Layout
-- ⬜ 👤 ___________ — Initialize frontend project
-- ⬜ Set up Next.js / React + Vite project
-- ⬜ Install shadcn/ui + Tailwind CSS
-- ⬜ Create app layout: sidebar navigation + main content area
-- ⬜ Define routes: Dashboard, Incident Detail, Schedule, Compliance, Approvals, Agent Log
-- ⬜ Set up API client (axios / fetch wrapper) pointing to backend
-- ⬜ **Unslop check:** layout, typography, color palette, sidebar — no default shadcn theme, no placeholder copy
+- ✅ 👤 ___________ — Initialize frontend project (`apps/frontend`)
+- ✅ Set up Next.js / React + Vite project — Next.js 15 App Router, React 19, TypeScript strict
+- ✅ Install shadcn/ui + Tailwind CSS — Tailwind v4 with a custom token set; shadcn components are owned source in `src/components/ui/` (button, dialog, tabs, navigation-menu, breadcrumb, select, input, label, checkbox), not the default theme
+- ✅ Create app layout: sidebar navigation + main content area — `src/app/(app)/layout.tsx` wraps `AppShell`: fixed sidebar on desktop, slide-in drawer on mobile, sticky header with breadcrumbs and theme toggle, light and dark
+- ✅ Define routes: Dashboard, Incident Detail, Schedule, Compliance, Approvals, Agent Log — `/dashboard`, `/incidents/[id]`, `/schedule`, `/compliance`, `/approvals`, `/agent-log`; route metadata lives in `src/lib/nav.ts`
+- ✅ Set up API client (axios / fetch wrapper) pointing to backend — `src/lib/api.ts` (typed `api`, `apiGet`, `apiPost`, `ApiError`, timeout, optional Zod response validation); base URL from `NEXT_PUBLIC_API_URL` (default `http://localhost:3001`); `apps/api` now allows the web origin via CORS (`WEB_ORIGIN`); sidebar shows live `/health` status
+- ✅ **Unslop check:** layout, typography, color palette, sidebar — own palette and type (Cormorant Garamond, Instrument Sans, IBM Plex Mono), no default shadcn theme, no emoji, no placeholder copy. Screens show an honest empty state naming the endpoint they will read, not invented records. Checked in light, dark and at 390px.
+- 🟡 Note for 4B-4H: each screen body is currently the shared `Pending` state from `src/components/app/screen.tsx`; replace it with the real view as each section is built.
 
 ### 4B — Incident Dashboard (Main View)
 - ⬜ 👤 ___________ — Build the central incident list/card view
