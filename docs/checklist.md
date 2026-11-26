@@ -103,7 +103,7 @@ Data, kernel, and agent tasks can run in parallel where their dependencies allow
 
 ### 2C — Incident State Machine
 - ⬜ 👤 ___________ — Implement incident lifecycle manager
-- 🟡 Complete the incident states. The domain type exists and needs `CLOSED`. [Domain entities](../packages/domain/src/entities.ts)
+- 🟡 Implement the incident lifecycle using the existing states, including `CLOSED`. [Domain entities](../packages/domain/src/entities.ts)
 - ⬜ Define valid transitions with preconditions
 - ⬜ Enforce invariants:
   - ⬜ Require verified accepted quantity or a valid waiver with schedule disposition before closure.
