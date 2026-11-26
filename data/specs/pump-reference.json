@@ -1,0 +1,218 @@
+{
+  "schema_version": 1,
+  "requirements": {
+    "id": "req-pump-chw-001",
+    "revision": 1,
+    "package_id": "pkg-pump-chw-001",
+    "reference_project": {
+      "name": "Pearl Harbor National Memorial Theater chilled-water pump replacement",
+      "solicitation_id": "140P8225B0002",
+      "equipment_tag": "CHWP-1",
+      "source_refs": ["nps-schedule-m1", "nps-construction-specifications"]
+    },
+    "scope_note": "The published single-pump schedule supplies the per-pump technical basis. Pactline's package quantity and procurement events are sandbox fixtures.",
+    "duty_point": {
+      "flow_gpm": 60,
+      "scheduled_speed_rpm": 1800,
+      "fluid": "WATER",
+      "speed_basis": "The scheduled 1,800 RPM is the nominal speed class for the demo. Each manufacturer's curve retains its plotted speed."
+    },
+    "criteria": [
+      {
+        "id": "pump-type",
+        "predicate": { "field": "pump_type", "operator": "EQ", "value": "END_SUCTION" },
+        "mandatory": true,
+        "evidence_needed": "Manufacturer submittal identifying the pump type of the offered model.",
+        "source_refs": ["nps-schedule-m1"]
+      },
+      {
+        "id": "head-at-duty",
+        "predicate": { "field": "head_at_duty", "operator": "GTE", "value": 80, "unit": "ft" },
+        "mandatory": true,
+        "basis": "The demo treats the scheduled head as a minimum. No downward acceptance tolerance is applied.",
+        "evidence_needed": "A head-flow curve that brackets the duty flow on the offered impeller, speed, and fluid basis.",
+        "source_refs": ["nps-schedule-m1"]
+      },
+      {
+        "id": "pump-efficiency-at-duty",
+        "predicate": { "field": "pump_efficiency_at_duty", "operator": "GTE", "value": 52, "unit": "%" },
+        "mandatory": true,
+        "basis": "The demo treats the scheduled efficiency as a pump efficiency minimum. No downward acceptance tolerance is applied.",
+        "evidence_needed": "Pump efficiency at the duty flow for the offered trim and speed, using the efficiency definition on the source curve.",
+        "source_refs": ["nps-schedule-m1"]
+      },
+      {
+        "id": "motor-power",
+        "predicate": { "field": "motor_rated_power", "operator": "EQ", "value": 5, "unit": "hp" },
+        "mandatory": true,
+        "evidence_needed": "Rated horsepower on the offered motor's nameplate or selected motor data sheet.",
+        "source_refs": ["nps-schedule-m1"]
+      },
+      {
+        "id": "motor-voltage",
+        "predicate": { "field": "compatible_supply_voltage", "operator": "EQ", "value": 208, "unit": "V" },
+        "mandatory": true,
+        "evidence_needed": "Documented compatibility of the offered motor with the project's line voltage.",
+        "source_refs": ["nps-schedule-m1"]
+      },
+      {
+        "id": "motor-phase",
+        "predicate": { "field": "motor_phase_count", "operator": "EQ", "value": 3 },
+        "mandatory": true,
+        "evidence_needed": "Phase count on the offered motor's nameplate or selected motor data sheet.",
+        "source_refs": ["nps-schedule-m1"]
+      },
+      {
+        "id": "motor-frequency",
+        "predicate": { "field": "motor_frequency", "operator": "EQ", "value": 60, "unit": "Hz" },
+        "mandatory": true,
+        "basis": "M1 lists voltage and phase. The demo uses the U.S. 60 Hz electrical basis.",
+        "evidence_needed": "Documented 60 Hz compatibility for the offered motor.",
+        "source_refs": ["nps-schedule-m1"]
+      },
+      {
+        "id": "pump-insulation",
+        "predicate": { "field": "elastomeric_insulation_thickness", "operator": "GTE", "value": 1.5, "unit": "in" },
+        "mandatory": true,
+        "evidence_needed": "Package or installation submittal identifying the elastomeric insulation and its thickness.",
+        "source_refs": ["nps-schedule-m1", "nps-construction-specifications"]
+      },
+      {
+        "id": "pump-insulation-jacketing",
+        "predicate": { "field": "insulation_jacketing_material", "operator": "EQ", "value": "ALUMINUM" },
+        "mandatory": true,
+        "evidence_needed": "Package or installation submittal identifying the insulation jacketing material.",
+        "source_refs": ["nps-schedule-m1", "nps-construction-specifications"]
+      }
+    ],
+    "open_criteria": [
+      {
+        "id": "npsh-margin",
+        "evidence_needed": "Site NPSH available at duty, the specified margin, and the configuration's NPSH required curve."
+      },
+      {
+        "id": "physical-fit",
+        "evidence_needed": "Verified site envelope, mounting and clearance limits, pipe tie-in details, and the selected package drawing."
+      },
+      {
+        "id": "wetted-materials",
+        "evidence_needed": "Site fluid and treatment chemistry, required materials, and the selected casing, impeller, and seal construction."
+      },
+      {
+        "id": "working-pressure-and-temperature",
+        "evidence_needed": "Site maximum pressure and temperature, and pressure and temperature ratings for the selected flange, casing, and seal."
+      }
+    ]
+  },
+  "product_configurations": [
+    {
+      "id": "cfg-bg-e1510-125bc-950-1750",
+      "manufacturer": "Bell & Gossett (Xylem)",
+      "family": "e-1510",
+      "model": "1.25BC",
+      "pump_type": "END_SUCTION",
+      "impeller_diameter_in": 9.5,
+      "curve_speed_rpm": 1750,
+      "market_frequency_hz": 60,
+      "curve_fluid": "WATER",
+      "curve_fluid_basis": "Clean-water pump literature. Test temperature and specific gravity are unspecified on the plot.",
+      "motor": null,
+      "curve": {
+        "source_ref": "bg-e1510-curve",
+        "method": "Scaled the published US GPM and feet axes and read the 9.5-inch head curve, pump efficiency contours, and NPSHr on its separate right-hand scale.",
+        "estimated_read_error": { "head_ft": 2, "efficiency_percentage_points": 2, "npshr_ft": 0.5 },
+        "points": [
+          { "flow_gpm": 50, "head_ft": 101.5, "pump_efficiency_pct": 51, "npshr_ft": 7 },
+          { "flow_gpm": 60, "head_ft": 99.5, "pump_efficiency_pct": 54, "npshr_ft": 7 },
+          { "flow_gpm": 70, "head_ft": 96.5, "pump_efficiency_pct": 56, "npshr_ft": 7.5 }
+        ]
+      },
+      "source_refs": ["bg-e1510-curve", "bg-e1510-submittal"]
+    },
+    {
+      "id": "cfg-taco-fi1206d-625-1760",
+      "manufacturer": "Taco Comfort Solutions",
+      "family": "FI",
+      "model": "FI1206D",
+      "pump_type": "END_SUCTION",
+      "impeller_diameter_in": 6.25,
+      "curve_speed_rpm": 1760,
+      "market_frequency_hz": 60,
+      "curve_fluid": "WATER",
+      "curve_fluid_basis": "Clear water as specified on curve PC-4005 Rev A.",
+      "curve_fluid_specific_gravity": 1,
+      "motor": null,
+      "curve": {
+        "source_ref": "taco-fi1206d-curve",
+        "method": "Scaled the published US GPM and feet axes and read the 6.25-inch head curve, pump efficiency contours, and NPSHr at the same horizontal coordinates on the upper plot.",
+        "estimated_read_error": { "head_ft": 1, "efficiency_percentage_points": 2, "npshr_ft": 0.5 },
+        "points": [
+          { "flow_gpm": 50, "head_ft": 38.5, "pump_efficiency_pct": 61, "npshr_ft": 2 },
+          { "flow_gpm": 60, "head_ft": 37, "pump_efficiency_pct": 64, "npshr_ft": 2.5 },
+          { "flow_gpm": 70, "head_ft": 35, "pump_efficiency_pct": 65, "npshr_ft": 2.5 }
+        ]
+      },
+      "catalog_connection": {
+        "suction_in": 2,
+        "discharge_in": 1.25,
+        "source_ref": "taco-fi1206d-submittal",
+        "basis": "Use the connection sizes from the model-specific dimension drawing. The earlier curve-book header uses a different size designation."
+      },
+      "source_refs": ["taco-fi1206d-curve", "taco-fi1206d-submittal"]
+    }
+  ],
+  "expected_findings": [
+    { "configuration_id": "cfg-bg-e1510-125bc-950-1750", "criterion_id": "head-at-duty", "result": "PASS" },
+    { "configuration_id": "cfg-bg-e1510-125bc-950-1750", "criterion_id": "motor-voltage", "result": "UNKNOWN" },
+    { "configuration_id": "cfg-taco-fi1206d-625-1760", "criterion_id": "head-at-duty", "result": "FAIL" }
+  ],
+  "evidence_sources": [
+    {
+      "id": "nps-schedule-m1",
+      "publisher": "National Park Service",
+      "document": "B08_Attach_2_Drawings.pdf",
+      "locator": "Sheet M1, Pump Schedule, CHWP-1 row",
+      "url": "https://govtribe.com/file/government-file/b08-attach-2-drawings-dot-pdf-5"
+    },
+    {
+      "id": "nps-construction-specifications",
+      "publisher": "National Park Service",
+      "document": "B08_Attach_1_Specifications.pdf",
+      "revision": "November 2024",
+      "locator": "Section 01 11 00, Summary of Work, and Division 23 thermal insulation",
+      "url": "https://govtribe.com/file/government-file/b08-attach-1-specifications-dot-pdf-4"
+    },
+    {
+      "id": "bg-e1510-curve",
+      "publisher": "Bell & Gossett (Xylem)",
+      "document": "Series e-1510 60 Hz Performance Curves",
+      "revision": "B-261J",
+      "locator": "PDF page 10, upper 1.25BC chart, 1,750 RPM, 9.5-inch trim. See page 2 for the clean-water scope.",
+      "url": "https://www.xylem.com/siteassets/brand/bell-amp-gossett/resources/curve/b-261j.pdf#page=10"
+    },
+    {
+      "id": "bg-e1510-submittal",
+      "publisher": "Bell & Gossett (Xylem)",
+      "document": "Series e-1510 1.25BC Base Mounted Centrifugal Pump Submittal",
+      "revision": "B-880.14B",
+      "locator": "PDF page 1, model and options, with unfilled job-specific motor fields",
+      "url": "https://www.xylem.com/siteassets/brand/bell-amp-gossett/resources/submittal/b-880.14b.pdf"
+    },
+    {
+      "id": "taco-fi1206d-curve",
+      "publisher": "Taco Comfort Solutions",
+      "document": "FI Pumps 60 Hz Performance Curves",
+      "revision": "300-2.5B, curve PC-4005 Rev A",
+      "locator": "PDF page 2, model 1206D, 1,760 RPM, 6.25-inch trim",
+      "url": "https://www.tacocomfort.com/documents/FileLibrary/FI_Curve_Book_60Hz_20201124.pdf#page=2"
+    },
+    {
+      "id": "taco-fi1206d-submittal",
+      "publisher": "Taco Comfort Solutions",
+      "document": "FI1206D 1,760 RPM Submittal",
+      "revision": "301-1400D",
+      "locator": "PDF pages 1–2, operating specifications, dimensions, materials, and curve 4005",
+      "url": "https://www.tacocomfort.com/documents/FileLibrary/FI_1206D_1760_Submittal_301-1400D.pdf"
+    }
+  ]
+}

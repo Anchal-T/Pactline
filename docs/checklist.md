@@ -9,11 +9,11 @@
 
 ## How to use this checklist
 
-Each phase is **self-contained enough for a separate person/pair to pick up**. Dependencies between phases are marked explicitly. Phases 1–3 can be worked on **in parallel** by different people. Phase 4 depends on Phase 1 + 2 + 3. Phase 5 depends on Phase 4. Phase 6 is independent and can start early.
+Data, kernel, and agent tasks can run in parallel where their dependencies allow. Start dashboard work after the deterministic kernel and all 12 required scenarios pass. Submission materials can start early. The [runtime architecture](https://app.notion.com/p/42358d57c29881aab441d6b9870af6a2) and [AGENTS.md](../AGENTS.md) define the agreed stack and verification gate.
 
 **Legend:**
 - ⬜ = Not started
-- 🟡 = In progress
+- 🟡 = In progress, including scaffolds and drafts
 - ✅ = Done
 - 🔴 = Blocked (note blocker)
 - 👤 = Assignee field — write your name
@@ -21,40 +21,36 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 ---
 
 ## Phase 1: Data & Domain Foundation
-> **Can be picked up by:** 1 person | **No dependencies** | **Est. effort:** 2–3 days
-> **What this delivers:** The synthetic project dataset that every other phase consumes.
+> **Can be picked up by:** 1 person | **Est. effort:** 2–3 days
+> **What this delivers:** Sandbox project and procurement fixtures paired with authentic public mechanical specifications and manufacturer pump data.
 
 ### 1A — Project Schedule Data
-- ⬜ 👤 ___________ — Create synthetic project schedule (10–15 activities with realistic dependencies)
-- ⬜ Define activity types: design, procurement, fabrication, delivery, inspection, installation, commissioning
-- ⬜ Set realistic durations and predecessor/successor relationships
-- ⬜ Include at least one critical path through pump installation
-- ⬜ Define calendars and constraints (working days, holidays)
-- ⬜ Output format: JSON file with activities, dependencies, dates, constraints
+- ✅ Create the synthetic baseline with 12 activities and 12 finish-to-start dependencies. [Schedule fixture](../data/fixtures/project-schedule.json)
+- ✅ Define activity types for design, procurement, fabrication, delivery, inspection, installation, and commissioning.
+- ✅ Set workday durations, planned dates, and predecessor/successor relationships.
+- ✅ Include a critical path through pump installation and 13 workdays of float for site preparation.
+- ✅ Define the workweek, holiday exclusions, and the site-preparation start constraint.
 
 ### 1B — Equipment & Procurement Data
-- ⬜ 👤 ___________ — Create synthetic equipment packages (3–5 packages, primary: chilled-water pumps)
-- ⬜ Define MaterialNeed records linking packages to schedule activities
-- ⬜ Create PO lines with vendor, quantities, contractual dates
-- ⬜ Create vendor milestone plans (fabrication → test → ship → deliver)
-- ⬜ Create initial VendorCommitment records (baseline promises)
-- ⬜ Output format: JSON seed data files
+- ✅ Create three sandbox packages for chilled-water pumps, anchor kits, and piping connection kits. [Procurement fixture](../data/fixtures/equipment-packages.json)
+- ✅ Link each package to a schedule activity through a `MaterialNeed` with a quantity, required usable date, and readiness buffer.
+- ✅ Add PO lines with fictional suppliers, quantities, release dates, and contractual arrivals.
+- ✅ Add an active allocation for each material need within the linked PO line quantity.
+- ✅ Add planned fabrication, test, dispatch, and delivery milestones.
+- ✅ Record an initial vendor acknowledgment for each PO line.
 
 ### 1C — Technical Specifications & Product Data
-- ⬜ 👤 ___________ — Create synthetic pump specification requirements
-- ⬜ Define typed requirements: flow/head at duty point, efficiency, motor/electrical, NPSH, dimensions, materials, pressure rating
-- ⬜ Include mandatory vs. optional distinction per requirement
-- ⬜ Define acceptance tolerances and evidence needed per requirement
-- ⬜ Collect 2–3 real manufacturer product families from public catalogs (Grundfos, Xylem/B&G, Wilo)
-- ⬜ Extract performance curves / data points for specific configurations
-- ⬜ Create ProductConfiguration records with evidence references
-- ⬜ Output format: JSON requirement sets + product configurations with source citations
+- ✅ Create the 60 Hz technical reference dataset from the NPS CHWP-1 schedule and project specifications. [Pump reference fixture](../data/specs/pump-reference.json)
+- ✅ Record typed duty-point, equipment, motor, and insulation criteria with applicability, evidence needs, and tolerance assumptions. Site NPSH, physical fit, materials, and pressure limits are recorded as open criteria.
+- ✅ Digitize the Bell & Gossett e-1510 and Taco FI curves for the selected impellers, speeds, and water basis. Store sampled head, efficiency, and NPSHr with source locators and estimated reading error.
+- ✅ Check that the fixture supports a head pass, a head failure, and an unknown motor finding.
+- ✅ Retain the superseded 50 Hz values for context. [Historical draft](../data/specs/pump-spec.md)
 
 ### 1D — Demo Event Sequence
-- ⬜ 👤 ___________ — Script the demo incident sequence (the synthetic "movie" the demo plays)
-- ⬜ Event 1: Vendor announces delay (day 38 arrival vs. day 30 needed)
+- 🟡 👤 ___________ — Script the sandbox demo incident sequence.
+- ✅ Add the first vendor delay fixture. The December 14 notice follows PO release and acknowledgment. The January 7 forecast arrival shifts earliest installation from December 30 to January 11. [Delay event](../data/fixtures/demo-events/01-vendor-delay.json)
 - ⬜ Event 2: Vendor silence on follow-up (stale update)
-- ⬜ Event 3: Alternative product offers received (candidate A passes, B fails head, C missing motor data)
+- ⬜ Event 3: Alternative product offers received (candidate A passes, B fails head, C missing motor data). Obtain a selected motor submittal and resolve the open site criteria before labeling a candidate as a full pass.
 - ⬜ Event 4: Technical approval granted for candidate A
 - ⬜ Event 5: Commercial approval granted
 - ⬜ Event 6: Shipment and receipt
@@ -69,7 +65,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 > **What this delivers:** The non-LLM backbone — world state, schedule engine, incident state machine, policy gateway.
 
 ### 2A — World State Store (Database)
-- ⬜ 👤 ___________ — Set up database (PostgreSQL or SQLite)
+- 🟡 👤 ___________ — Set up Neon PostgreSQL and Drizzle migrations. The database client and migration configuration are scaffolded. [Database package](../packages/db/package.json)
 - ⬜ Define schema for all Phase 3 entities:
   - ⬜ Project, ScheduleRevision
   - ⬜ Activity, Dependency
@@ -107,23 +103,23 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 
 ### 2C — Incident State Machine
 - ⬜ 👤 ___________ — Implement incident lifecycle manager
-- ⬜ Define states: DETECTED, INVESTIGATING, PLANNING, AWAITING_APPROVAL, EXECUTING, MITIGATED, VERIFYING, CLOSED, ESCALATED, BLOCKED
+- 🟡 Implement the incident lifecycle using the existing states, including `CLOSED`. [Domain entities](../packages/domain/src/entities.ts)
 - ⬜ Define valid transitions with preconditions
 - ⬜ Enforce invariants:
-  - ⬜ No closure without verified acceptance
+  - ⬜ Require verified accepted quantity or a valid waiver with schedule disposition before closure.
   - ⬜ No duplicate procurement allocation
   - ⬜ Reopening on new evidence that invalidates recovery
-  - ⬜ Every open incident has owner + next action + review deadline
+  - ⬜ Require an owner, review deadline, and either a next action or a blocker on every open incident.
 - ⬜ Transition logging (full audit trail of state changes with timestamps)
 - ⬜ Unit tests for valid and invalid transitions
 
 ### 2D — Event Ingress & Normalization
 - ⬜ 👤 ___________ — Build event intake pipeline
-- ⬜ Define event envelope schema (event_id, type, project_id, subject, timestamps, source, evidence_ref, payload)
-- ⬜ REST endpoint: `POST /api/events/ingest`
+- 🟡 Align the event envelope and fixture IDs. The Zod schema currently requires UUIDs, and the delay fixture uses `evt-001`. [Event schema](../packages/domain/src/events.ts)
+- 🟡 Wire `POST /api/events/ingest` to validate the envelope and call `IncidentRuntime.ingestEvent()`. The route currently returns a placeholder acknowledgment. [Event route](../apps/api/src/routes/events.ts)
 - ⬜ Deduplication by source_event_id
 - ⬜ Out-of-order handling with version/effective-date rules
-- ⬜ Event → world state update propagation (e.g., VendorCommitmentChanged → update PO line forecast)
+- ⬜ Record commitments from `VendorCommitmentChanged` in append-only history and compute the forecast from the latest valid commitment.
 - ⬜ Event → incident trigger rules (e.g., forecast exceeds need date → open incident)
 
 ### 2E — Policy & Execution Gateway
@@ -133,7 +129,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ⬜ Pre-action checks: scope, approval validity (exact revision match), preconditions
 - ⬜ Action intent logging before execution
 - ⬜ Action receipt recording after execution
-- ⬜ Uncertain outcome handling (flag for reconciliation, don't retry blindly)
+- ⬜ Reconcile uncertain outcomes by idempotency key before retrying.
 
 ### 2F — Compliance Evaluator (Deterministic)
 - ⬜ 👤 ___________ — Build typed requirement evaluation engine
@@ -159,8 +155,8 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 
 ### 3A — Agent Framework Setup
 - ⬜ 👤 ___________ — Set up agent orchestration framework
-- ⬜ Choose framework: LangGraph / custom / Temporal (evaluate based on durable state needs)
-- ⬜ Configure LLM provider (Gemini 2.5 Pro / Flash)
+- 🟡 Implement stateless, read-only LangChain calls behind `AgentWorkers` and `OperatorDecider`. Dependencies are declared. Neon owns durable execution state. [Agent workers package](../packages/agent-workers/package.json)
+- 🟡 Configure `ChatOpenAI` through Cloudflare AI Gateway or another OpenAI-compatible endpoint, with separate model settings for extraction, investigation, and operator decisions. [Environment example](../.env.example)
 - ⬜ Define delegation contract schema (task_id, incident_id, role, objective, input versions, evidence refs, output schema)
 - ⬜ Implement task dispatch and result collection
 - ⬜ Implement bounded delegation (max depth, max parallel tasks, timeout with escalation)
@@ -176,7 +172,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ⬜ Follow-up scheduling: set timers for vendor response deadlines, approval expiry
 - ⬜ Incident progression: drive incident through lifecycle based on specialist results
 - ⬜ Persistence: save operator state between events (durable execution)
-- ⬜ Crash recovery: resume correctly from last checkpoint without duplicating actions
+- ⬜ Recover worker ticks from persisted Neon state and reconcile uncertain outbox actions before retrying.
 
 ### 3C — Investigation Agent
 - ⬜ 👤 ___________ — Build root cause investigation specialist
@@ -212,23 +208,27 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ⬜ Include approval and logistics lead times in projected dates
 - ⬜ Structured comparison output for UI and for operator decision
 
+### 3G — Pre-UI Verification
+- 🟡 Implement the 12 required scenarios. The harness currently enumerates them. [Scenario scaffold](../packages/eval-harness/src/scenarios/index.ts)
+- ⬜ Pass all 12 scenarios against an isolated Neon branch using `VirtualClock` and a fault-injecting `SandboxExternalAdapter`. [Verification targets](../AGENTS.md#6-verification-target-12-mandatory-scenarios)
+
 ---
 
 ## Phase 4: Frontend — Operator Dashboard
-> **Can be picked up by:** 1–2 people | **Depends on:** Phase 2 API endpoints (can start with mock data) | **Est. effort:** 3–4 days
+> **Deferred until:** The deterministic kernel and all 12 required scenarios pass (Phase 3G).
 > **What this delivers:** The visual dashboard for demo and human-in-the-loop interaction.
 >
 > **Design rule — [Unslop](https://github.com/heydamir/unslop):** Every component below must pass an Unslop review before it is marked done. Run Unslop after each section completes. A component that renders but looks like a default template is **not done**. The dashboard must look like something a procurement manager would trust with real incident data.
 
 ### 4A — Project Setup & Layout
 - ✅ 👤 ___________ — Initialize frontend project (`apps/frontend`)
-- ✅ Set up Next.js / React + Vite project — Next.js 15 App Router, React 19, TypeScript strict
+- ✅ Set up Next.js 15 App Router with React 19 and strict TypeScript
 - ✅ Install shadcn/ui + Tailwind CSS — Tailwind v4 with a custom token set; shadcn components are owned source in `src/components/ui/` (button, dialog, tabs, navigation-menu, breadcrumb, select, input, label, checkbox), not the default theme
 - ✅ Create app layout: sidebar navigation + main content area — `src/app/(app)/layout.tsx` wraps `AppShell`: fixed sidebar on desktop, slide-in drawer on mobile, sticky header with breadcrumbs and theme toggle, light and dark
 - ✅ Define routes: Dashboard, Incident Detail, Schedule, Compliance, Approvals, Agent Log — `/dashboard`, `/incidents/[id]`, `/schedule`, `/compliance`, `/approvals`, `/agent-log`; route metadata lives in `src/lib/nav.ts`
 - ✅ Set up API client (axios / fetch wrapper) pointing to backend — `src/lib/api.ts` (typed `api`, `apiGet`, `apiPost`, `ApiError`, timeout, optional Zod response validation); base URL from `NEXT_PUBLIC_API_URL` (default `http://localhost:3001`); `apps/api` now allows the web origin via CORS (`WEB_ORIGIN`); sidebar shows live `/health` status
 - ✅ **Unslop check:** layout, typography, color palette, sidebar — own palette and type (Cormorant Garamond, Instrument Sans, IBM Plex Mono), no default shadcn theme, no emoji, no placeholder copy. Screens show an honest empty state naming the endpoint they will read, not invented records. Checked in light, dark and at 390px.
-- 🟡 Note for 4B-4H: each screen body is currently the shared `Pending` state from `src/components/app/screen.tsx`; replace it with the real view as each section is built.
+- 🟡 The dashboard routes render the shared `Pending` screen. Implement 4B–4H after the Phase 3G verification gate passes.
 
 ### 4B — Incident Dashboard (Main View)
 - ⬜ 👤 ___________ — Build the central incident list/card view
@@ -303,7 +303,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 
 ### 5A — MCP Server Implementation
 - ⬜ 👤 ___________ — Expose backend as MCP server (required by hackathon)
-- ⬜ Install and configure MCP SDK (TypeScript — `@modelcontextprotocol/sdk` in `apps/mcp`)
+- 🟡 Configure the TypeScript MCP server. The `@modelcontextprotocol/sdk` stdio entry point exists and tool registration is pending. [MCP server](../apps/mcp/src/index.ts)
 - ⬜ Implement MCP tools:
   - ⬜ `analyze_schedule_impact` — calls schedule engine
   - ⬜ `investigate_procurement_issue` — calls investigation agent
@@ -330,7 +330,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 
 ### 5C — Demo Mode & Replay
 - ⬜ 👤 ___________ — Build demo replay capability
-- ⬜ Script event injection from Phase 1D event sequence
+- 🟡 Connect the ordered fixture replay to `IncidentRuntime.ingestEvent()`. The replay script currently reads and logs events. [Replay script](../scripts/run-demo.ts)
 - ⬜ Timed event replay (simulate days passing in seconds/minutes)
 - ⬜ Frontend demo mode: guided walkthrough with annotations explaining each phase
 - ⬜ Reset function to restart demo from scratch
@@ -338,9 +338,9 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 
 ### 5D — Docker Deployment
 - ⬜ 👤 ___________ — Containerize everything for judges
-- ⬜ Dockerfile for backend (Python + FastAPI + agents)
-- ⬜ Dockerfile for frontend (Next.js / React build)
-- ⬜ docker-compose.yml: backend + frontend + DB
+- ⬜ Dockerfile for the TypeScript backend and workers on Node 24.
+- ⬜ Dockerfile for the Next.js frontend.
+- ⬜ Docker Compose for app services with a Neon connection configured via `DATABASE_URL`.
 - ⬜ Single `docker compose up` starts everything
 - ⬜ README with setup instructions, model names, cost/response time estimates
 - ⬜ Environment variable for LLM API key
@@ -402,30 +402,17 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 
 ## Phase Dependency Map
 
-```
-Phase 1 (Data)  ──────────────────┐
-                                   │
-Phase 2 (Backend Core) ───────────┼──→ Phase 5 (Integration & MCP)
-                                   │          │
-Phase 3 (Agent Layer) ────────────┘          │
-         ↑ depends on 2A, 2D                  │
-                                              ↓
-Phase 4 (Frontend) ───────────────────→ Phase 5 (Integration)
-         ↑ can start with mock data           │
-                                              ↓
-Phase 6 (Deliverables) ←─────────────── Phase 5 complete
-         ↑ pitch deck & README can start early
-```
+- Phase 1 provides the fixtures, and Phase 2 provides the kernel. Phase 1B uses the Phase 1A schedule IDs. Phase 1D uses the procurement fixtures and Phase 1C candidate evidence.
+- Phase 3 agent wiring uses the Phase 2 world store and event ingress. Phase 3G verifies the fixtures, kernel, and runtime before Phase 4 starts.
+- Phase 5 MCP wiring can start alongside the backend. The full dashboard demo uses the Phase 4 views and approval flow.
+- Phase 6 materials can start early. The final demo uses the verified Phase 5 flow.
 
 ## Parallelism Guide
 
-| Day | Person A (Backend) | Person B (Backend/Agents) | Person C (Frontend) | Person D (Data/Deliverables) |
+| Timing | Person A (Backend) | Person B (Backend/Agents) | Person C (Verification/Frontend) | Person D (Data/Deliverables) |
 | --- | --- | --- | --- | --- |
-| 1–2 | Phase 2A, 2B (DB + Schedule Engine) | Phase 2C, 2D (Incident SM + Events) | Phase 4A, 4B (Setup + Dashboard) | Phase 1A, 1B (Schedule + Equipment data) |
-| 3–4 | Phase 2E, 2F (Gateway + Compliance) | Phase 3A, 3B (Agent Framework + Operator) | Phase 4C, 4D (Detail + Gantt) | Phase 1C, 1D (Specs + Demo script) |
-| 5–6 | Phase 3C, 3D (Investigation + Engineering agents) | Phase 3E, 3F (Sourcing + Recovery) | Phase 4E, 4F, 4G (Compliance + Recovery + Approvals) | Phase 6B (Pitch deck draft) |
-| 7–8 | Phase 5A (MCP Server) | Phase 5B (E2E Wiring) | Phase 4H + 5C (Agent Log + Demo mode) | Phase 5D (Docker) |
-| 9–10 | Bug fixes + testing | Bug fixes + testing | Polish + demo mode | Phase 6A, 6C, 6D (Video + README + Submit) |
+| Before the verification gate | Phase 2 world store, schedule, gateway, and compliance | Incident runtime, ingress, and Phase 3 agents | Phase 3G scenario harness and verification | Phase 1C, 1D, and pitch deck draft |
+| After the verification gate | Phase 5A MCP server and backend integration | Phase 5B end-to-end wiring | Phase 4 dashboard and Phase 5C demo mode | Deployment, README, video, and submission |
 
 ---
 
