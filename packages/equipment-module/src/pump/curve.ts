@@ -87,6 +87,15 @@ export function interpolate(curve: ValidatedCurve, flowM3h: number, field: Curve
   if (!isFiniteNumber(loValue) || !isFiniteNumber(hiValue)) {
     return { ok: false, reason: `Curve does not state ${FIELD_LABELS[field]} around ${flowM3h} m³/h` };
   }
+  if (field === "efficiencyPct") {
+    const invalid = !isPercent(loValue) ? lo : !isPercent(hiValue) ? hi : undefined;
+    if (invalid) {
+      return {
+        ok: false,
+        reason: `Curve efficiency ${invalid.efficiencyPct}% at ${invalid.flowM3h} m³/h is not a valid percentage`,
+      };
+    }
+  }
   if (lo === hi) return { ok: true, value: loValue };
   const t = (flowM3h - lo.flowM3h) / (hi.flowM3h - lo.flowM3h);
   return { ok: true, value: loValue + t * (hiValue - loValue) };
@@ -101,4 +110,8 @@ export const FIELD_LABELS: Record<CurveField, string> = {
 
 function isFiniteNumber(value: number | undefined): value is number {
   return value !== undefined && Number.isFinite(value);
+}
+
+export function isPercent(value: number): boolean {
+  return value > 0 && value <= 100;
 }

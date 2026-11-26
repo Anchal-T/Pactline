@@ -20,7 +20,7 @@ import type {
   RequirementSet,
   Verdict,
 } from "../types.js";
-import { type PumpCurve, type ValidatedCurve, interpolate, validateCurve } from "./curve.js";
+import { type PumpCurve, type ValidatedCurve, interpolate, isPercent, validateCurve } from "./curve.js";
 
 export type { CurveConditions, CurvePoint, PumpCurve } from "./curve.js";
 
@@ -163,7 +163,6 @@ function efficiencyAtDuty(
   if (invalid) return invalid;
   const pump = interpolate(curve, requirement.flowM3h, "efficiencyPct");
   if (!pump.ok) return unknown(pump.reason, refs);
-  if (!isPercent(pump.value)) return unknown(`Curve efficiency ${pump.value}% is not a valid percentage`, refs);
   let efficiency = pump.value;
   let label = "Pump efficiency";
   if (requirement.basis === "WIRE_TO_WATER") {
@@ -264,10 +263,6 @@ function overloadCheck(ratedPowerKw: number | undefined, curve: Curve): Check {
 
 function hasEvidence(motor: MotorData | undefined): motor is MotorData {
   return motor !== undefined && hasRef(motor.evidenceRef);
-}
-
-function isPercent(value: number): boolean {
-  return value > 0 && value <= 100;
 }
 
 function isFiniteNumber(value: number | undefined): value is number {

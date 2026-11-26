@@ -308,6 +308,30 @@ describe("malformed input never produces an unsupported FAIL or PASS", () => {
     expect(finding(badMotor, "efficiency").result).toBe("UNKNOWN");
   });
 
+  it.each([[150, 10], [10, 150]])(
+    "rejects invalid curve samples %i%% and %i%% before interpolating efficiency",
+    (lower, upper) => {
+      const curve = CANDIDATE_A.curve!;
+      const configuration: PumpConfiguration = {
+        ...CANDIDATE_A,
+        curve: {
+          ...curve,
+          points: [
+            { flowM3h: 50, headM: 40, efficiencyPct: lower },
+            { flowM3h: 150, headM: 40, efficiencyPct: upper },
+          ],
+        },
+      };
+      const report = evaluate(configuration, only(REQUIREMENTS.requirements[1]!));
+      expect(report.status).toBe("INCOMPLETE");
+      expect(report.findings[0]).toMatchObject({
+        result: "UNKNOWN",
+        evidenceRefs: [curve.evidenceRef],
+      });
+      expect(finding(configuration, "head").result).toBe("PASS");
+    },
+  );
+
   it("tolerates evidence records missing their reference field", () => {
     const untyped = { ...CANDIDATE_A, motor: { phases: 3 } } as unknown as PumpConfiguration;
     expect(finding(untyped, "motor").result).toBe("UNKNOWN");
