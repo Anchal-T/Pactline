@@ -2,10 +2,16 @@
 // Serves: REST endpoints, WebSocket for live dashboard updates, event ingress webhook
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 
 const app = new Hono();
 app.use(logger());
+app.use(
+  "/api/*",
+  cors({ origin: (process.env.WEB_ORIGIN ?? "http://localhost:3000").split(",") }),
+);
+app.use("/health", cors({ origin: (process.env.WEB_ORIGIN ?? "http://localhost:3000").split(",") }));
 
 // Health check
 app.get("/health", (c) => c.json({ status: "ok", service: "pactline-api" }));
