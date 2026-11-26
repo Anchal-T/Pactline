@@ -1,7 +1,6 @@
-# SYNTHETIC Pump Specification — Chilled-Water End-Suction Pumps
+# Superseded Synthetic Pump Specification — Chilled-Water End-Suction Pumps
 
-> **SYNTHETIC DATA** — compiled from public engineering references for demo purposes only.
-> Do not use for real procurement decisions.
+> **Historical draft.** The original synthetic 50 Hz values are retained for context. The active demo uses the public U.S. 60 Hz technical reference. [Active pump reference fixture](pump-reference.json)
 
 ## Equipment Schedule Reference
 
