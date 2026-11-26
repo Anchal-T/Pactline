@@ -5,6 +5,7 @@ export type PackageId = string & { readonly _brand: "PackageId" };
 export type POLineId = string & { readonly _brand: "POLineId" };
 export type IncidentId = string & { readonly _brand: "IncidentId" };
 export type RequirementSetId = string & { readonly _brand: "RequirementSetId" };
+export type RequirementId = string & { readonly _brand: "RequirementId" };
 export type ProductConfigId = string & { readonly _brand: "ProductConfigId" };
 export type ApprovalId = string & { readonly _brand: "ApprovalId" };
 export type ActionReceiptId = string & { readonly _brand: "ActionReceiptId" };
