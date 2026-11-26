@@ -3,7 +3,7 @@
 // PENDING with the component and Linear issue that unblocks them.
 import { CentrifugalPumpModule } from "@pactline/equipment-module";
 import { analyzeDelay } from "@pactline/schedule-engine";
-import { CANDIDATE_A, CANDIDATE_B, CANDIDATE_C, PUMP_REQUIREMENTS, REQ } from "../fixtures/pump-candidates.js";
+import { BELL_AND_GOSSETT, TACO, PUMP_REQUIREMENTS, REQ } from "../fixtures/pump-candidates.js";
 import { PUMP_SCHEDULE, activity } from "../fixtures/pump-schedule.js";
 import { type Scenario, check } from "../harness.js";
 
@@ -48,16 +48,17 @@ export const SCENARIOS: readonly Scenario[] = [
     id: 3,
     title: "Mandatory pump-curve head failure (FAIL)",
     run: () => {
-      const report = CentrifugalPumpModule.evaluate(PUMP_REQUIREMENTS, CANDIDATE_B);
+      const report = CentrifugalPumpModule.evaluate(PUMP_REQUIREMENTS, TACO);
       const head = findingFor(report, REQ.head);
-      const control = CentrifugalPumpModule.evaluate(PUMP_REQUIREMENTS, CANDIDATE_A);
+      const control = CentrifugalPumpModule.evaluate(PUMP_REQUIREMENTS, BELL_AND_GOSSETT);
       return [
-        check("head at 100 m³/h is FAIL", head?.result, "FAIL"),
+        check("Taco head at 60 US gpm is FAIL", head?.result, "FAIL"),
         check("head requirement is mandatory", head?.mandatory, true),
-        check("interpolated head at duty flow (m)", head?.observed, 32),
-        check("finding cites the curve evidence", head?.evidenceRefs, ["sandbox://offers/b/curve.pdf#p2"]),
+        check("37 ft converted to meters at duty flow", head?.observed, 11.278),
+        check("finding cites the manufacturer curve", head?.evidenceRefs, [TACO.curve?.evidenceRef]),
         check("mandatory FAIL makes the configuration NON_COMPLIANT", report.status, "NON_COMPLIANT"),
-        check("control: candidate A is COMPLIANT", control.status, "COMPLIANT"),
+        check("control: Bell & Gossett head is PASS", findingFor(control, REQ.head)?.result, "PASS"),
+        check("control: selected motor evidence is still missing", control.status, "INCOMPLETE"),
       ];
     },
   },
@@ -65,23 +66,14 @@ export const SCENARIOS: readonly Scenario[] = [
     id: 4,
     title: "Missing motor/curve evidence (UNKNOWN, never PASS)",
     run: () => {
-      const noMotor = CentrifugalPumpModule.evaluate(PUMP_REQUIREMENTS, CANDIDATE_C);
-      const noCurve = CentrifugalPumpModule.evaluate(PUMP_REQUIREMENTS, { ...CANDIDATE_A, curve: undefined });
-      const curveDependent = [REQ.head, REQ.efficiency, REQ.npsh, REQ.motor];
+      const noMotor = CentrifugalPumpModule.evaluate(PUMP_REQUIREMENTS, BELL_AND_GOSSETT);
+      const noCurve = CentrifugalPumpModule.evaluate(PUMP_REQUIREMENTS, { ...BELL_AND_GOSSETT, curve: undefined });
       return [
-        check("motor supply is UNKNOWN without motor data", findingFor(noMotor, REQ.motor)?.result, "UNKNOWN"),
-        check(
-          "wire-to-water efficiency is UNKNOWN without motor efficiency",
-          findingFor(noMotor, REQ.efficiency)?.result,
-          "UNKNOWN",
-        ),
-        check("UNKNOWN motor finding cites no evidence", findingFor(noMotor, REQ.motor)?.evidenceRefs, []),
+        check("motor voltage is UNKNOWN without selected motor data", findingFor(noMotor, REQ.motorVoltage)?.result, "UNKNOWN"),
+        check("UNKNOWN motor finding cites no evidence", findingFor(noMotor, REQ.motorVoltage)?.evidenceRefs, []),
         check("configuration with missing motor data is INCOMPLETE", noMotor.status, "INCOMPLETE"),
-        check(
-          "no curve-dependent requirement PASSes without a curve",
-          noCurve.findings.filter((f) => curveDependent.includes(f.requirementId) && f.result === "PASS").length,
-          0,
-        ),
+        check("head is UNKNOWN without a curve", findingFor(noCurve, REQ.head)?.result, "UNKNOWN"),
+        check("pump efficiency is UNKNOWN without a curve", findingFor(noCurve, REQ.efficiency)?.result, "UNKNOWN"),
         check("configuration with no curve is INCOMPLETE", noCurve.status, "INCOMPLETE"),
       ];
     },

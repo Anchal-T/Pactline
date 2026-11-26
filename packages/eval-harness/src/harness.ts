@@ -50,12 +50,18 @@ export interface EvalReport {
   readonly complete: boolean;
 }
 
+const MANDATORY_SCENARIO_IDS = Array.from({ length: 12 }, (_, index) => index + 1);
+
 export function runScenarios(scenarios: readonly Scenario[]): EvalReport {
   const results = scenarios.map(runScenario);
   const count = (outcome: ScenarioOutcome) => results.filter((r) => r.outcome === outcome).length;
   const failed = count("FAILED");
   const pending = count("PENDING");
-  return { results, passed: count("PASSED"), failed, pending, complete: failed === 0 && pending === 0 };
+  const passed = count("PASSED");
+  const passedIds = new Set(results.filter((result) => result.outcome === "PASSED").map((result) => result.id));
+  const complete = results.length === MANDATORY_SCENARIO_IDS.length &&
+    MANDATORY_SCENARIO_IDS.every((id) => passedIds.has(id));
+  return { results, passed, failed, pending, complete };
 }
 
 function runScenario(scenario: Scenario): ScenarioResult {

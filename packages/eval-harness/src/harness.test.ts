@@ -50,7 +50,12 @@ describe("runScenarios", () => {
     expect(result).toMatchObject({ outcome: "FAILED", error: "boom" });
   });
 
-  it("is complete only when every scenario runs and passes", () => {
-    expect(runScenarios([{ id: 1, title: "t", run: () => [check("ok", [1], [1])] }]).complete).toBe(true);
+  it("is complete only when all 12 required scenario IDs pass exactly once", () => {
+    const passing = SCENARIOS.map(({ id, title }) => ({ id, title, run: () => [check("ok", true, true)] }));
+    expect(runScenarios(passing).complete).toBe(true);
+    expect(runScenarios([]).complete).toBe(false);
+    expect(runScenarios(passing.slice(0, 11)).complete).toBe(false);
+    expect(runScenarios([...passing.slice(1), passing[1]!]).complete).toBe(false);
+    expect(runScenarios([...passing, { ...passing[0]!, id: 13 }]).complete).toBe(false);
   });
 });
