@@ -1,6 +1,6 @@
 {
-  "_note": "SYNTHETIC SANDBOX EVENT — not a real vendor communication",
-  "event_id": "evt-001",
+  "_note": "SYNTHETIC SANDBOX EVENT — fixture only",
+  "event_id": "2a9a2b96-daed-58b6-b9b2-6e135f3dfb0d",
   "type": "VendorCommitmentChanged",
   "project_id": "proj-hvac-demo-001",
   "subject_type": "POLine",
@@ -8,10 +8,20 @@
   "occurred_at": "2026-12-14T09:00:00Z",
   "received_at": "2026-12-14T09:05:00Z",
   "source": "sandbox-vendor-email",
+  "source_event_id": "pump-forecast-001-v2",
+  "evidence_ref": "sandbox://events/pump-forecast-001/v2",
+  "correlation_id": "inc-demo-pump-001",
   "payload": {
     "previous_arrival_date": "2026-12-28",
     "revised_arrival_date": "2027-01-07",
     "reason": "Manufacturing backlog at supplier facility",
     "vendor_contact": "sandbox-contact@example-vendor.com"
+  },
+  "fixture": {
+    "expected_ingress": "stored",
+    "expected_behavior": "Open or update the incident as CRITICAL. The January 7 forecast plus the two-day readiness buffer moves the earliest working installation start to January 11.",
+    "expected_tainted_fields": [
+      "payload.revised_arrival_date"
+    ]
   }
 }

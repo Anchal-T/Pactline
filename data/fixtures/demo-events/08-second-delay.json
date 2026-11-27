@@ -1,0 +1,25 @@
+{
+  "_note": "SYNTHETIC SANDBOX EVENT — fixture only",
+  "event_id": "015ceb91-3b80-549a-ae8c-690ef2df1642",
+  "type": "VendorCommitmentChanged",
+  "project_id": "proj-hvac-demo-001",
+  "subject_type": "POLine",
+  "subject_id": "pol-pump-001",
+  "occurred_at": "2026-12-23T08:00:00Z",
+  "received_at": "2026-12-23T08:04:00Z",
+  "source": "sandbox-recovery-vendor-email",
+  "source_event_id": "pump-recovery-forecast-001-v2",
+  "evidence_ref": "sandbox://events/pump-recovery-forecast-001/v2",
+  "correlation_id": "inc-demo-pump-001",
+  "payload": {
+    "offer_id": "offer-demo-pump-a",
+    "previous_arrival_date": "2026-12-28",
+    "revised_arrival_date": "2027-01-06",
+    "reason": "Recovery shipment missed its outbound pickup"
+  },
+  "fixture": {
+    "expected_ingress": "stored",
+    "expected_behavior": "From a seeded MITIGATED incident with zero accepted units, reopen to INVESTIGATING and reassess the schedule and approval pins before further action.",
+    "requires_verified_recovery": true
+  }
+}

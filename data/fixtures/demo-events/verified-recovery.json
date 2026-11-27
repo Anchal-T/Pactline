@@ -1,0 +1,13 @@
+{
+  "_note": "SYNTHETIC SANDBOX STARTING STATE — assumes independently verified technical evidence, valid human approvals, and confirmed execution for this isolated scenario.",
+  "project_id": "proj-hvac-demo-001",
+  "incident_id": "inc-demo-pump-001",
+  "po_line_id": "pol-pump-001",
+  "offer_id": "offer-demo-pump-a",
+  "product_config_id": "cfg-bg-e1510-125bc-950-1750",
+  "status": "MITIGATED",
+  "required_qty": 2,
+  "accepted_qty": 0,
+  "authorization_ref": "sandbox://scenario-seeds/verified-recovery/authorization",
+  "confirmed_execution_ref": "sandbox://scenario-seeds/verified-recovery/execution"
+}

@@ -1,0 +1,34 @@
+{
+  "_note": "SYNTHETIC SANDBOX EVENT — fixture only",
+  "event_id": "0da7ae5e-1fb0-535c-a865-386a574758a7",
+  "type": "ApprovalGranted",
+  "project_id": "proj-hvac-demo-001",
+  "subject_type": "Approval",
+  "subject_id": "approval-demo-pump-commercial",
+  "occurred_at": "2026-12-18T14:00:00Z",
+  "received_at": "2026-12-18T14:00:00Z",
+  "source": "sandbox-human-approval",
+  "source_event_id": "approval-demo-pump-commercial-v1",
+  "evidence_ref": "sandbox://approvals/approval-demo-pump-commercial",
+  "correlation_id": "inc-demo-pump-001",
+  "payload": {
+    "approval_id": "approval-demo-pump-commercial",
+    "kind": "COMMERCIAL",
+    "actor_role": "PROCUREMENT_MANAGER",
+    "actor_id": "sandbox-procurement-manager",
+    "incident_id": "inc-demo-pump-001",
+    "product_config_id": "cfg-bg-e1510-125bc-950-1750",
+    "offer_id": "offer-demo-pump-a",
+    "pins": {
+      "requirement_rev": "req-pump-chw-001@1",
+      "config_rev": "cfg-bg-e1510-125bc-950-1750@1",
+      "offer_rev": "offer-demo-pump-a@1",
+      "plan_rev": "plan-demo-pump-recovery@1"
+    },
+    "expires_at": "2026-12-22T16:00:00Z"
+  },
+  "fixture": {
+    "expected_ingress": "stored",
+    "expected_behavior": "Keep binding execution blocked while independent technical evidence is incomplete. The simulated approvals do not override that block."
+  }
+}

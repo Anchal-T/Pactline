@@ -1,0 +1,30 @@
+{
+  "_note": "SYNTHETIC SANDBOX EVENT — fixture only",
+  "event_id": "fbca93cb-dcd9-5293-9285-2dbdf893809e",
+  "type": "InspectionCompleted",
+  "project_id": "proj-hvac-demo-001",
+  "subject_type": "POLine",
+  "subject_id": "pol-pump-001",
+  "occurred_at": "2026-12-29T14:00:00Z",
+  "received_at": "2026-12-29T14:03:00Z",
+  "source": "sandbox-human-inspection",
+  "source_event_id": "pump-inspection-001-v1",
+  "evidence_ref": "sandbox://inspections/pump-inspection-001",
+  "correlation_id": "inc-demo-pump-001",
+  "payload": {
+    "inspection_id": "pump-inspection-001",
+    "receipt_id": "pump-receipt-001",
+    "po_line_id": "pol-pump-001",
+    "product_config_id": "cfg-bg-e1510-125bc-950-1750",
+    "actor_id": "sandbox-receiving-inspector",
+    "actor_role": "RECEIVING_INSPECTOR",
+    "accepted_qty": 2,
+    "required_qty": 2,
+    "readiness_complete_at": "2026-12-30T08:00:00Z"
+  },
+  "fixture": {
+    "expected_ingress": "stored",
+    "expected_behavior": "Close the preapproved sandbox recovery only after the human inspection is verified and two units are accepted. Keep the incident open on incomplete or unverified acceptance.",
+    "requires_verified_recovery": true
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "_note": "SYNTHETIC SANDBOX EVENT — fixture only",
+  "event_id": "8276f5c4-d3b2-5872-b6fb-f37528b9d986",
+  "type": "ShipmentReceived",
+  "project_id": "proj-hvac-demo-001",
+  "subject_type": "POLine",
+  "subject_id": "pol-pump-001",
+  "occurred_at": "2026-12-28T10:00:00Z",
+  "received_at": "2026-12-28T10:02:00Z",
+  "source": "sandbox-goods-receipt",
+  "source_event_id": "pump-receipt-001-v1",
+  "evidence_ref": "sandbox://receipts/pump-receipt-001",
+  "correlation_id": "inc-demo-pump-001",
+  "payload": {
+    "receipt_id": "pump-receipt-001",
+    "po_line_id": "pol-pump-001",
+    "product_config_id": "cfg-bg-e1510-125bc-950-1750",
+    "quantity": 2,
+    "shipped_at": "2026-12-23T12:00:00Z",
+    "shipped_qty": 2,
+    "received_qty": 2,
+    "accepted_qty": 0
+  },
+  "fixture": {
+    "expected_ingress": "stored",
+    "expected_behavior": "In the preapproved sandbox recovery context, record two received units and enter VERIFYING. Receipt alone leaves accepted quantity at zero.",
+    "requires_verified_recovery": true
+  }
+}

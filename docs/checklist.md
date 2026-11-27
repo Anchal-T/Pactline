@@ -87,13 +87,14 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ⬜ **[M]** Verify ISO 9906 grade tolerance values and operating-region rule from the standard before encoding
 
 ### 1D — Demo Event Sequence & Documents
-- 🟡 👤 ___________ — Script the sandbox demo incident sequence (Events 01–11 per docs/07 §7).
-- ✅ Add the first vendor delay fixture. The December 14 notice follows PO release and acknowledgment. The January 7 forecast arrival shifts earliest installation from December 30 to January 11. [Delay event](../data/fixtures/demo-events/01-vendor-delay.json)
-- ⬜ **[M]** Event 2: Vendor silence on follow-up (stale update)
-- ⬜ **[M]** Event 3: Alternative product offers received (candidate A passes, B fails head, C missing motor data, plus expired offer variant). Obtain a selected motor submittal and resolve open site criteria before labeling a candidate as a full pass.
-- ⬜ **[M]** Event 4–5: Technical approval granted for candidate A; Commercial approval granted
-- ⬜ **[M]** Event 6–7: Shipment, receipt, and inspection result
-- ⬜ **[M]** Event 8–11: Second delay → incident reopens; float-absorbed delay; out-of-order event
+- ✅ Script events 01–11 with ordered replay paths and expected outcomes. [Demo fixtures](../data/fixtures/demo-events/README.md)
+- ✅ Event 1 moves the forecast arrival to January 7 and the earliest installation start to January 11. [Delay event](../data/fixtures/demo-events/01-vendor-delay.json)
+- ✅ Event 2 records one bounded follow-up and the later supplier-silence escalation.
+- ✅ Event 3 records the head-pass, head-fail, missing-motor, and expired-offer inputs.
+- ⬜ **[M]** Verify selected motor and site evidence before treating a candidate as fully compliant.
+- ✅ Events 4–5 record the simulated human decisions with separate roles and matching approval pins.
+- ✅ Events 6–7 replay receipt and inspection from a verified recovery seed. Event 8 uses the same seed in a separate replay before receipt or acceptance.
+- ✅ Events 9–11 cover tainted vendor text, float absorption, and an out-of-order commitment.
 - ⬜ **[M]** Injection fixtures: vendor email with hidden instruction + PDF with white-on-white text (~15 variants for eval)
 - ⬜ **[S]** Synthetic nameplate photos (match + IE2/IE3 mismatch), SANDBOX watermark
 - ⬜ **[S]** 3 quote PDFs with differing exclusions for S8
@@ -310,7 +311,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ⬜ **[M]** Reopen on second delay; approval invalidation on offer/spec revision
 
 ### 5C — Demo Mode & Replay
-- 🟡 👤 ___________ **[M]** Connect ordered fixture replay to `IncidentRuntime.ingestEvent()` with `VirtualClock` (days in seconds). [Replay script](../scripts/run-demo.ts)
+- 🟡 👤 ___________ **[M]** The demo runner replays fixtures through `IncidentRuntime.ingestEvent()` in memory. Connect replay to the persistent runtime and drive the lifecycle with `VirtualClock`. [Replay script](../scripts/run-demo.ts)
 - ⬜ **[M]** Reset to clean state; all synthetic data labelled in UI
 - ⬜ **[S]** Guided annotations per phase; kill-worker button for the crash beat
 

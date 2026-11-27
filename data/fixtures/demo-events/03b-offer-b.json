@@ -1,0 +1,37 @@
+{
+  "_note": "SYNTHETIC SANDBOX EVENT — fixture only",
+  "event_id": "542435a6-10e1-5be0-a865-0dc2c2f296c7",
+  "type": "OfferReceived",
+  "project_id": "proj-hvac-demo-001",
+  "subject_type": "SupplierOffer",
+  "subject_id": "offer-demo-pump-b",
+  "occurred_at": "2026-12-18T10:05:00Z",
+  "received_at": "2026-12-18T10:05:00Z",
+  "source": "sandbox-vendor-quote",
+  "source_event_id": "offer-demo-pump-b-v1",
+  "evidence_ref": "sandbox://quotes/offer-demo-pump-b/v1",
+  "correlation_id": "inc-demo-pump-001",
+  "payload": {
+    "offer_id": "offer-demo-pump-b",
+    "offer_rev": 1,
+    "candidate": "B",
+    "supplier_id": "supplier-demo-recovery-b",
+    "product_config_id": "cfg-taco-fi1206d-625-1760",
+    "for_po_line_id": "pol-pump-001",
+    "quantity": 2,
+    "price": {
+      "total": 7600,
+      "currency": "USD"
+    },
+    "quoted_arrival_date": "2026-12-28",
+    "expires_at": "2026-12-22T16:00:00Z",
+    "technical_notes": "Offer uses the published Taco FI1206D curve."
+  },
+  "fixture": {
+    "expected_ingress": "stored",
+    "expected_behavior": "Reject the candidate for mandatory head failure at 60 US gpm. Commercial terms cannot override that failure.",
+    "expected_tainted_fields": [
+      "payload.quoted_arrival_date"
+    ]
+  }
+}

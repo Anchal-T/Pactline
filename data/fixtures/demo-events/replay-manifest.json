@@ -1,0 +1,44 @@
+{
+  "recovery": {
+    "events": [
+      "01-vendor-delay.json",
+      "02a-vendor-silence.json",
+      "02b-vendor-silence-escalation.json",
+      "03a-offer-a.json",
+      "03b-offer-b.json",
+      "03c-offer-c.json",
+      "03d-offer-expired.json",
+      "04-technical-approval.json",
+      "05-commercial-approval.json"
+    ]
+  },
+  "acceptance": {
+    "seed": "verified-recovery.json",
+    "events": [
+      "06-shipment-received.json",
+      "07-inspection-completed.json"
+    ]
+  },
+  "reopen": {
+    "seed": "verified-recovery.json",
+    "events": [
+      "08-second-delay.json"
+    ]
+  },
+  "out-of-order": {
+    "events": [
+      "01-vendor-delay.json",
+      "11-out-of-order.json"
+    ]
+  },
+  "untrusted-text": {
+    "events": [
+      "09-untrusted-vendor-text.json"
+    ]
+  },
+  "float-absorbed": {
+    "events": [
+      "10-float-absorbed.json"
+    ]
+  }
+}
