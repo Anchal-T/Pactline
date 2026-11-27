@@ -1,4 +1,5 @@
-// EquipmentModule seam — CentrifugalPumpModule first
-// Bounded H-Q curve interpolation, duty-point evaluation, NPSH margin, motor compatibility
-// Missing evidence → UNKNOWN (never PASS). No extrapolation beyond validated range.
+// EquipmentModule seam: deterministic compliance evaluation per equipment category.
+// Missing evidence -> UNKNOWN (never PASS). No extrapolation beyond validated data.
+export * from "./types.js";
+export { evaluateGeneric, overallStatus } from "./evaluate.js";
 export * from "./pump/index.js";

@@ -3,14 +3,20 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
+    "eval": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
     "@pactline/domain": "workspace:*",
-    "@pactline/incident-runtime": "workspace:*"
+    "@pactline/equipment-module": "workspace:*",
+    "@pactline/incident-runtime": "workspace:*",
+    "@pactline/schedule-engine": "workspace:*"
   },
   "devDependencies": {
     "@pactline/typescript-config": "workspace:*",
