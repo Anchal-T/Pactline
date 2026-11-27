@@ -1,224 +1,204 @@
 # Pactline — Build Checklist
 
-> **Product:** Procurement Continuity Operator — autonomous agent suite for construction procurement recovery
-> **Primary Track:** Track 03 (Vertical Agents) | **Supporting:** Track 01 (Durable execution, long-horizon work)
-> **Submission Deadline:** Sunday, December 6, 2026
-> **Equipment Niche (Prototype):** Commercial HVAC chilled-water centrifugal pumps
+> **Product:** Procurement Continuity Operator — a suite of MCP-callable specialist agents plus a durable operator for construction procurement recovery
+> **Primary Track:** Track 03 (Vertical Agents) | **Supporting:** Track 01 (durable execution, long-horizon work)
+> **Submission Deadline:** Sunday, December 6, 2026, 23:45 IST
+> **Equipment Niche (Prototype):** Chilled-water horizontal end-suction centrifugal pumps (commercial HVAC / data-center CHW plant), 400 V / 3 ph / 50 Hz
+> **Last updated:** November 27, 2026 — re-planned after research ([docs/01](01_Research_Synthesis.md)); suite expanded from 3 to 9 specialists ([docs/03](03_Agent_Suite_Specification.md))
 
 ---
 
 ## How to use this checklist
 
-Each phase is **self-contained enough for a separate person/pair to pick up**. Dependencies between phases are marked explicitly. Phases 1–3 can be worked on **in parallel** by different people. Phase 4 depends on Phase 1 + 2 + 3. Phase 5 depends on Phase 4. Phase 6 is independent and can start early.
+Each phase is **self-contained enough for a separate person/pair to pick up**. Dependencies are marked. Every item is tagged by tier:
+
+- **[M] Must** — required for a credible Round 1 submission. Do these first.
+- **[S] Should** — strong differentiators; start only when the Musts in your lane are green.
+- **[X] Stretch** — only if time remains after Dec 4.
+
+**Judging weights to keep in mind:** Accuracy 40% · Customer value 30% · Trust (sources, confidence, nothing made up) 20% · Build quality 10%. Judges will try **unseen inputs**.
+
+**Acceptance test for backend work:** the hero scenario in [05 Reference Execution Trace](05_Reference_Execution_Trace.md). A milestone is done when the trace runs further than before.
 
 **Legend:**
 - ⬜ = Not started
-- 🟡 = In progress
+- 🟡 = In progress / scaffold only
 - ✅ = Done
 - 🔴 = Blocked (note blocker)
 - 👤 = Assignee field — write your name
 
 ---
 
+## Current reality (Nov 27)
+
+| Area | State |
+| --- | --- |
+| Monorepo, pnpm, turbo, TS strict | ✅ |
+| `packages/schedule-engine` (CPM, float, calendars, delay impact, tests) | ✅ |
+| `apps/frontend` shell (4A) | ✅ |
+| `packages/domain`, `db`, `equipment-module`, `execution-gateway`, `incident-runtime`, `agent-workers`, `eval-harness`, `apps/api`, `apps/mcp` | 🟡 scaffolds (5–76 lines each) |
+| Fixtures: schedule activities, product configurations, submittals | 🟡 empty / placeholder |
+
+---
+
+## Phase 0: Shared Contract (do first — unblocks everyone)
+> **Owner:** 1 person | **Depends on:** nothing | **Est.:** 0.5 day | **Spec:** [docs/03 §3](03_Agent_Suite_Specification.md)
+
+- ⬜ 👤 ___________ **[M]** `packages/domain/src/contracts.ts`: Zod for `SpecialistResult<T>`, `SourceRef`, `Confidence`, `Finding`, `HumanHandoff`, `EntityRef`, `StatePin`, `Assertion`
+- ⬜ **[M]** Envelope validator: schema check, **no-invention rule** (identities must resolve to catalog/source), **verbatim-excerpt check**, stale-evidence tier cap, INSUFFICIENT_EVIDENCE filter
+- ⬜ **[M]** `idempotency_key = sha256(canonical inputs + specialist version)` helper + cached replay
+- ⬜ **[M]** Generate MCP `outputSchema` from the Zod types
+- ⬜ **[S]** Grounding validator for model-written prose (IDs, vendors, dates, amounts must match structured result; template fallback with `provenance`)
+
+---
+
 ## Phase 1: Data & Domain Foundation
-> **Can be picked up by:** 1 person | **No dependencies** | **Est. effort:** 2–3 days
-> **What this delivers:** The synthetic project dataset that every other phase consumes.
+> **Owner:** 1 person | **No dependencies** | **Est.:** 2 days | **Spec:** [docs/07](07_Canonical_Demo_Dataset.md)
 
 ### 1A — Project Schedule Data
-- ⬜ 👤 ___________ — Create synthetic project schedule (10–15 activities with realistic dependencies)
-- ⬜ Define activity types: design, procurement, fabrication, delivery, inspection, installation, commissioning
-- ⬜ Set realistic durations and predecessor/successor relationships
-- ⬜ Include at least one critical path through pump installation
-- ⬜ Define calendars and constraints (working days, holidays)
-- ⬜ Output format: JSON file with activities, dependencies, dates, constraints
+- ⬜ 👤 ___________ **[M]** Fill `project-schedule.json` with the 14 activities in docs/07 §2 (IDs fixed)
+- ⬜ **[M]** Baseline `sched-rev-001` (immutable) + current `sched-rev-003`
+- ⬜ **[M]** Calendar (Mon–Fri, holidays 2026-12-25, 2027-01-26)
+- ⬜ **[M]** Critical path through A-140 → M-200; float path via A-170/A-180 (scenario 1)
+- ⬜ **[S]** PERT ranges per activity for Monte Carlo (defaults documented)
+- ⬜ **[M]** Tune durations once so engine output matches docs/05, then freeze
 
 ### 1B — Equipment & Procurement Data
-- ⬜ 👤 ___________ — Create synthetic equipment packages (3–5 packages, primary: chilled-water pumps)
-- ⬜ Define MaterialNeed records linking packages to schedule activities
-- ⬜ Create PO lines with vendor, quantities, contractual dates
-- ⬜ Create vendor milestone plans (fabrication → test → ship → deliver)
-- ⬜ Create initial VendorCommitment records (baseline promises)
-- ⬜ Output format: JSON seed data files
+- ⬜ 👤 ___________ **[M]** 4 packages, 5 PO lines, 5 fictional SANDBOX vendors (docs/07 §3)
+- ⬜ **[M]** MaterialNeed records (package ↔ activity, readiness buffer)
+- ⬜ **[M]** Baseline VendorCommitment history (append-only)
+- ⬜ **[S]** Vendor promise-vs-actual history (≥3 past deliveries per vendor) for S5 slip ratio
 
-### 1C — Technical Specifications & Product Data
-- ⬜ 👤 ___________ — Create synthetic pump specification requirements
-- ⬜ Define typed requirements: flow/head at duty point, efficiency, motor/electrical, NPSH, dimensions, materials, pressure rating
-- ⬜ Include mandatory vs. optional distinction per requirement
-- ⬜ Define acceptance tolerances and evidence needed per requirement
-- ⬜ Collect 2–3 real manufacturer product families from public catalogs (Grundfos, Xylem/B&G, Wilo)
-- ⬜ Extract performance curves / data points for specific configurations
-- ⬜ Create ProductConfiguration records with evidence references
-- ⬜ Output format: JSON requirement sets + product configurations with source citations
+### 1C — Requirements & Authentic Product Data
+- ⬜ 👤 ___________ **[M]** Version `pump-spec.md` → `reqset-pump-r2` (R-01…R-09) + `reqset-pump-r3` (scenario 6)
+- ⬜ **[M]** Collect 2–3 manufacturers × 3–5 configs of 50 Hz end-suction pumps around 100 m³/h @ 35 m from **public datasheets** (URL, page, retrieval date, SHA-256)
+- ⬜ **[M]** Required coverage: `cfg-A` passes, `cfg-B` fails head at duty, `cfg-C` lacks motor evidence; +2 configs reserved for held-out
+- ⬜ **[M]** Digitize curves (H-Q, η, NPSHr, P2) manually as ground truth; record RMS
+- ⬜ **[M]** `data/SOURCES.md` provenance & licence log
+- ⬜ **[M]** Verify ISO 9906 grade tolerance values and operating-region rule from the standard before encoding (research found conflicting secondary sources)
 
-### 1D — Demo Event Sequence
-- ⬜ 👤 ___________ — Script the demo incident sequence (the synthetic "movie" the demo plays)
-- ⬜ Event 1: Vendor announces delay (day 38 arrival vs. day 30 needed)
-- ⬜ Event 2: Vendor silence on follow-up (stale update)
-- ⬜ Event 3: Alternative product offers received (candidate A passes, B fails head, C missing motor data)
-- ⬜ Event 4: Technical approval granted for candidate A
-- ⬜ Event 5: Commercial approval granted
-- ⬜ Event 6: Shipment and receipt
-- ⬜ Event 7: Inspection result
-- ⬜ Event 8: Second delay → incident reopens
-- ⬜ Output format: Ordered JSON event files with timestamps, payloads, and expected agent behavior
+### 1D — Demo Event Sequence & Documents
+- ⬜ 👤 ___________ **[M]** Events 01–11 per docs/07 §7 (slip, silence, offers, approvals, shipment, inspection, second delay, injection, float-absorbed, out-of-order)
+- ⬜ **[M]** Offers incl. one expired variant (scenario 5)
+- ⬜ **[M]** Injection fixtures: vendor email with hidden instruction + PDF with white-on-white text (~15 variants for eval)
+- ⬜ **[S]** Synthetic nameplate photos (match + IE2/IE3 mismatch), SANDBOX watermark
+- ⬜ **[S]** 3 quote PDFs with differing exclusions for S8
+
+### 1E — Evaluation Datasets
+- ⬜ 👤 ___________ **[M]** `data/eval/dev/` + `data/eval/heldout/` with hand-labelled `expected.json` (second-person review)
+- ⬜ **[M]** Freeze held-out set on **Dec 3**; never referenced by prompts
+- ⬜ **[S]** Synthetic lead-time promise/actual pairs (documented generator, labelled SYNTHETIC) for conformal calibration
 
 ---
 
-## Phase 2: Backend Core — Deterministic Kernel
-> **Can be picked up by:** 1–2 people | **No dependencies (parallel with Phase 1)** | **Est. effort:** 3–4 days
-> **What this delivers:** The non-LLM backbone — world state, schedule engine, incident state machine, policy gateway.
+## Phase 2: Deterministic Kernel
+> **Owner:** 1–2 people | **Parallel with Phase 1** | **Est.:** 3 days
 
-### 2A — World State Store (Database)
-- ⬜ 👤 ___________ — Set up database (PostgreSQL or SQLite)
-- ⬜ Define schema for all Phase 3 entities:
-  - ⬜ Project, ScheduleRevision
-  - ⬜ Activity, Dependency
-  - ⬜ EquipmentPackage, MaterialNeed
-  - ⬜ PurchaseOrder, POLine
-  - ⬜ FulfillmentAllocation
-  - ⬜ VendorCommitment, Milestone
-  - ⬜ RequirementSet, Requirement
-  - ⬜ ProductConfiguration, Evidence
-  - ⬜ ComplianceFinding
-  - ⬜ SupplierOffer
-  - ⬜ Incident
-  - ⬜ RecoveryPlan, RecoveryAction
-  - ⬜ Approval
-  - ⬜ ActionReceipt
-  - ⬜ Receipt, Inspection, Acceptance
-- ⬜ Implement versioned record history (all updates preserved, not overwritten)
-- ⬜ Write seed data loader (loads Phase 1 JSON into DB)
-- ⬜ Write basic CRUD + query functions for each entity
+### 2A — World State Store (Neon Postgres + Drizzle)
+- ⬜ 👤 ___________ **[M]** Schema for plan-doc §15 entities **plus** `facts` (bi-temporal: `valid_from/valid_to/recorded_at/source_event_id`), `entity_links`, `plans`, `plan_steps`, `specialist_tasks`, `audit_events`, `calibration`, `prequal_scorecards`
+- ⬜ **[M]** Append-only commitment history; versioned records
+- ⬜ **[M]** DB constraints for invariants 1, 3, 5, 7, 8 (allocation sum, offer evidence/expiry NOT NULL, closure, baseline immutability, open-incident CHECK)
+- ⬜ **[M]** Seed loader from Phase 1 fixtures
+- ⬜ **[M]** Read projections for API/UI
 
 ### 2B — Schedule Engine
-- ⬜ 👤 ___________ — Implement deterministic CPM/float calculator
-- ⬜ Forward pass: compute early start / early finish for all activities
-- ⬜ Backward pass: compute late start / late finish for all activities
-- ⬜ Calculate total float per activity
-- ⬜ Identify critical path
-- ⬜ **Impact analysis function:** Given a delayed item, recompute affected activities and report:
-  - ⬜ Which activities are delayed
-  - ⬜ How much float is consumed
-  - ⬜ Whether the critical path is affected
-  - ⬜ New projected dates
-- ⬜ Handle calendar constraints (working days only)
-- ⬜ Unit tests with known schedule → known results
-- ⬜ **[Keploy](https://github.com/keploy/keploy):** record `POST /api/events/ingest` calls during demo replay → auto-generate regression tests stored in `apps/api/keploy/`
+- ✅ 👤 ___________ Deterministic CPM/float calculator — `packages/schedule-engine`
+- ✅ Forward pass (early start / finish)
+- ✅ Backward pass (late start / finish)
+- ✅ Total float per activity
+- ✅ Critical path
+- ✅ Impact analysis (`analyzeDelay`): delayed activities, float consumed, critical path affected, projected dates, `NONE | FLOAT_ABSORBED | WARNING | CRITICAL`
+- ✅ Working-day calendars, holidays, lags, milestones, SNET constraints
+- ✅ Unit tests with known schedule → known results
+- ⬜ **[M]** Monte Carlo layer: seeded RNG, 5–10k runs, P(meet need date), p50/p80 finish, criticality index
+- ⬜ **[M]** Counterfactual API: re-run per recovery option → ΔP(on-time)
+- ⬜ **[S]** Schedule-quality findings (open ends, cycles, missing logic)
+- ⬜ **[S]** **Keploy:** record `POST /api/events/ingest` during demo replay → `apps/api/keploy/`
 
 ### 2C — Incident State Machine
-- ⬜ 👤 ___________ — Implement incident lifecycle manager
-- ⬜ Define states: DETECTED, INVESTIGATING, PLANNING, AWAITING_APPROVAL, EXECUTING, MITIGATED, VERIFYING, CLOSED, ESCALATED, BLOCKED
-- ⬜ Define valid transitions with preconditions
-- ⬜ Enforce invariants:
-  - ⬜ No closure without verified acceptance
-  - ⬜ No duplicate procurement allocation
-  - ⬜ Reopening on new evidence that invalidates recovery
-  - ⬜ Every open incident has owner + next action + review deadline
-- ⬜ Transition logging (full audit trail of state changes with timestamps)
-- ⬜ Unit tests for valid and invalid transitions
+- ⬜ 👤 ___________ **[M]** States & transitions per [docs/04 §3](04_System_Workflows.md)
+- ⬜ **[M]** Invariants: no closure without verified acceptance; reopen from MITIGATED; owner + next action/blocker + review deadline
+- ⬜ **[M]** Optimistic version checks; transition audit log
+- ⬜ **[M]** Unit tests for valid/invalid transitions
 
 ### 2D — Event Ingress & Normalization
-- ⬜ 👤 ___________ — Build event intake pipeline
-- ⬜ Define event envelope schema (event_id, type, project_id, subject, timestamps, source, evidence_ref, payload)
-- ⬜ REST endpoint: `POST /api/events/ingest`
-- ⬜ Deduplication by source_event_id
-- ⬜ Out-of-order handling with version/effective-date rules
-- ⬜ Event → world state update propagation (e.g., VendorCommitmentChanged → update PO line forecast)
-- ⬜ Event → incident trigger rules (e.g., forecast exceeds need date → open incident)
+- ⬜ 👤 ___________ **[M]** Envelope schema (exists in `domain/events.ts`) + `POST /api/events/ingest`
+- ⬜ **[M]** Dedupe by `source_event_id`; out-of-order by `source_version`/effective date
+- ⬜ **[M]** Propagation: commitment → PO line forecast → need → impact → incident trigger
+- ⬜ **[M]** **Taint marking** on untrusted fields; deterministic cross-checks promote to `verified`
 
 ### 2E — Policy & Execution Gateway
-- ⬜ 👤 ___________ — Build the authority enforcement layer
-- ⬜ Define action types and their required approval levels
-- ⬜ Idempotency key generation and duplicate-action prevention
-- ⬜ Pre-action checks: scope, approval validity (exact revision match), preconditions
-- ⬜ Action intent logging before execution
-- ⬜ Action receipt recording after execution
-- ⬜ Uncertain outcome handling (flag for reconciliation, don't retry blindly)
+- ⬜ 👤 ___________ **[M]** Action classes `READ | DRAFT | EXTERNAL_WRITE | BINDING` and required approvals
+- ⬜ **[M]** Approval pin + expiry re-check inside the enqueue transaction
+- ⬜ **[M]** `action_receipts` outbox with deterministic idempotency key; `DISPATCHING` before execute
+- ⬜ **[M]** `reconcile(idempotencyKey)` before retry; `UNCERTAIN → ESCALATED`
+- ⬜ **[M]** **Taint policy:** no tainted argument to a side effect without human approval; recipient allow-list; rate limits
+- ⬜ **[M]** `SandboxExternalAdapter` with fault injection (crash after write, timeout)
 
-### 2F — Compliance Evaluator (Deterministic)
-- ⬜ 👤 ___________ — Build typed requirement evaluation engine
-- ⬜ Requirement predicate types: numeric comparison (≥, ≤, =, range), string match, boolean
-- ⬜ Pump-specific predicates:
-  - ⬜ Head at specified flow ≥ minimum (with interpolation from curve data)
-  - ⬜ Efficiency at duty point
-  - ⬜ Motor / electrical / VFD compatibility
-  - ⬜ NPSH available vs. required (with margin)
-  - ⬜ Physical dimensions and connection fit
-  - ⬜ Material and pressure rating
-- ⬜ Evaluate: PASS / FAIL / UNKNOWN / NOT_APPLICABLE per requirement
-- ⬜ Return evidence references for each finding
-- ⬜ No extrapolation beyond validated data range → UNKNOWN
-- ⬜ Unit tests with known product data → known compliance results
-- ⬜ **[Keploy](https://github.com/keploy/keploy):** record `check_compliance` MCP tool calls → replay suite in `apps/mcp/keploy/`
+### 2F — Pump Compliance Evaluator (EquipmentModule)
+- ⬜ 👤 ___________ **[M]** `CentrifugalPumpModule` behind `EquipmentModule` interface
+- ⬜ **[M]** Monotone (PCHIP) interpolation within digitized range; **no extrapolation → UNKNOWN**
+- ⬜ **[M]** Affinity laws for impeller trim / speed
+- ⬜ **[M]** Checks: head at duty with ISO 9906 grade tolerance; efficiency at duty; operating region vs BEP; NPSH margin; motor non-overload to end of curve; electrical (V/ph/Hz/IE); flanges DN/PN; materials; fluid temperature
+- ⬜ **[M]** PASS / FAIL / UNKNOWN / NOT_APPLICABLE with evidence refs per finding
+- ⬜ **[M]** **Calibrated abstention:** |margin| < extraction error band → UNKNOWN
+- ⬜ **[M]** Unit tests: known curves → known verdicts (A/B/C)
+- ⬜ **[S]** Stub second module (AHU fan or chiller) to prove the seam
+- ⬜ **[S]** **Keploy:** record `pactline_check_submittal` MCP calls → `apps/mcp/keploy/`
+
+### 2G — Entity Resolver & Conflict Detector (new)
+- ⬜ 👤 ___________ **[S]** Model-string canonicalisation (`mfr, series, suction×discharge×impeller`)
+- ⬜ **[S]** Fellegi–Sunter-style match weights (pg_trgm blocking, Jaro-Winkler) with per-field contributions for the waterfall UI
+- ⬜ **[S]** Conflict detector: join specialist `Assertion`s on `claim_key` → `DisagreementRaised` with both citations
 
 ---
 
-## Phase 3: Backend — Agent Layer (LLM)
-> **Can be picked up by:** 1–2 people | **Depends on:** Phase 2A (DB schema), Phase 2D (event pipeline) — can start skeleton while Phase 2 builds | **Est. effort:** 3–4 days
-> **What this delivers:** The LLM-powered agents that reason, investigate, and coordinate.
+## Phase 3: Specialist Agents & Operator (LLM + deterministic)
+> **Owner:** 1–2 people | **Depends on:** Phase 0, 2A, 2D (skeletons can start now) | **Est.:** 4 days | **Spec:** [docs/03 §4](03_Agent_Suite_Specification.md)
 
 ### 3A — Agent Framework Setup
-- ⬜ 👤 ___________ — Set up agent orchestration framework
-- ⬜ Choose framework: LangGraph / custom / Temporal (evaluate based on durable state needs)
-- ⬜ Configure LLM provider (Gemini 2.5 Pro / Flash)
-- ⬜ Define delegation contract schema (task_id, incident_id, role, objective, input versions, evidence refs, output schema)
-- ⬜ Implement task dispatch and result collection
-- ⬜ Implement bounded delegation (max depth, max parallel tasks, timeout with escalation)
-- ⬜ Implement structured output validation on return
+- ⬜ 👤 ___________ **[M]** LangChain `ChatOpenAI` via OpenAI-compatible gateway; role tiers `extraction | vision | operator`
+- ⬜ **[M]** Delegation contract (task_id, incident_id, role, objective, StatePin, evidence refs, budget, deadline, output schema)
+- ⬜ **[M]** `tickTasks` with `FOR UPDATE SKIP LOCKED`; stale-pin results kept for audit, not executed
+- ⬜ **[M]** Bounded delegation (max depth, parallelism, timeout → escalate)
+- ⬜ **[M]** `model_usage` capture (model, tokens, cost, ms) on every call
+- ⬜ **[M]** Quarantined extraction helper (narrow schema, spotlighting/datamarking of untrusted text)
 
-### 3B — Procurement Operator Agent
-- ⬜ 👤 ___________ — Build the main operator agent
-- ⬜ System prompt with role, standing responsibility, authority boundaries
-- ⬜ Event handler: receive event → load incident + world state context → decide next step
-- ⬜ Delegation logic: when to call which specialist
-- ⬜ Recovery plan composition: compare options from specialists, rank, propose
-- ⬜ Approval request generation: exact configuration/revision/evidence for human review
-- ⬜ Follow-up scheduling: set timers for vendor response deadlines, approval expiry
-- ⬜ Incident progression: drive incident through lifecycle based on specialist results
-- ⬜ Persistence: save operator state between events (durable execution)
-- ⬜ Crash recovery: resume correctly from last checkpoint without duplicating actions
+### 3B — Document Pipeline (new; feeds S3, S4, S8, S9)
+- ⬜ 👤 ___________ **[M]** Layout parse with page + bbox (Docling or Marker sidecar), cached by content hash
+- ⬜ **[M]** Spec compiler: CSI-structured spec → typed `Requirement[]` with verbatim quotes; human approves the rule set once
+- ⬜ **[M]** Submittal value extraction ×2 with disagreement → `CONFLICTING_SOURCES`
+- ⬜ **[S]** Vision curve digitizer: axis calibration + polyline ×3–5, median, PCHIP fit, RMS vs ground truth
+- ⬜ **[S]** `pactline_ingest_document` as a long-running MCP task
 
-### 3C — Investigation Agent
-- ⬜ 👤 ___________ — Build root cause investigation specialist
-- ⬜ Input: conflicting/stale commitments, PO history, vendor updates
-- ⬜ Output: supported hypotheses, confirmed facts, missing evidence, next questions
-- ⬜ Capability: reconcile multiple data sources, detect inconsistencies
-- ⬜ Constraint: cannot assert unconfirmed root cause — must label confidence
-- ⬜ Structured output with evidence citations
+### 3C — Specialists (each = MCP tool returning `SpecialistResult`)
+- ⬜ 👤 ___________ **[M] S1 Delivery Risk** — CPM + Monte Carlo, P(on-time), criticality index
+- ⬜ 👤 ___________ **[M] S2 Investigation** — bi-temporal fact diff, freshness, labelled hypotheses, missing evidence, next questions, vendor slip ratio
+- ⬜ 👤 ___________ **[M] S3 Spec & Submittal Compliance** — dual citations, verdict recommendation, abstention (crown jewel)
+- ⬜ 👤 ___________ **[M] S4 Product Discovery / Equivalents** — closed catalog only, affinity trim, every candidate re-checked by S3, fit score
+- ⬜ 👤 ___________ **[M] S5 Lead-Time Forecast** — mixture prior from dated market reports, vendor slip adjustment, split-conformal intervals, STOCKED vs ETO regimes
+- ⬜ 👤 ___________ **[M] S6 Recovery Planner** — hard constraints → counterfactual ΔP(on-time) → cost frontier; grounded drafts
+- ⬜ 👤 ___________ **[S] S7 Vendor Pre-Qualification** — rule scorecard PASS/FLAG/FAIL/UNKNOWN; cached public-registry snapshots; entity-match gate
+- ⬜ 👤 ___________ **[S] S9 Receiving Verification** — nameplate photo ×3 agreement vs PO + approved submittal → ACCEPT/HOLD/REJECT
+- ⬜ 👤 ___________ **[S] S8 Quote Leveling** — pump-package exclusion taxonomy, plug values with basis, RFI drafts
+- ⬜ **[X]** Vendor discovery (rep locators / directories, source-required)
 
-### 3D — Engineering Compliance Agent (LLM Extraction)
-- ⬜ 👤 ___________ — Build specification extraction specialist
-- ⬜ Input: spec document (PDF/markdown), submittal document
-- ⬜ Output: extracted requirements with types, units, conditions, mandatory status
-- ⬜ Capability: parse engineering specifications, identify requirement clauses
-- ⬜ Hand off extracted requirements to deterministic compliance evaluator (Phase 2F)
-- ⬜ Handle ambiguous / unclear spec language → flag UNKNOWN rather than guess
-- ⬜ Source citation for every extracted requirement (document, page, section)
-
-### 3E — Alternative Sourcing Agent
-- ⬜ 👤 ___________ — Build product/supplier search specialist
-- ⬜ Input: required specifications, quantity, location, latest viable date, supplier constraints
-- ⬜ Output: candidate products with configurations, availability, lead time, source refs
-- ⬜ Search against product catalog data (Phase 1C) — no invented products/vendors
-- ⬜ Return compliance summary (pre-screen against requirements)
-- ⬜ Include availability evidence and quote validity/expiry
-- ⬜ Constraint: no fabricated stock, prices, or delivery commitments
-
-### 3F — Recovery Planning Logic
-- ⬜ 👤 ___________ — Build recovery option evaluation (can be inside operator or separate)
-- ⬜ Compare options: expedite original, substitute product, split fulfillment, resequence
-- ⬜ For each option: projected usable date, cost/risk, required approvals, blockers
-- ⬜ Hard constraints first (mandatory requirement failures eliminate options), ranking second
-- ⬜ Include approval and logistics lead times in projected dates
-- ⬜ Structured comparison output for UI and for operator decision
+### 3D — Procurement Operator (Track 01)
+- ⬜ 👤 ___________ **[M]** Event → load incident + world snapshot → decide next step (structured output)
+- ⬜ **[M]** Plan-as-data (`plans`, `plan_steps`), replan on new evidence with visible diff
+- ⬜ **[M]** Parallel dispatch (S1 ‖ S2 ‖ S4) and result collection
+- ⬜ **[M]** Approval request generation with exact pins
+- ⬜ **[M]** Follow-up timers (vendor response, approval expiry, post-mitigation monitoring) with bounded retries → escalate
+- ⬜ **[M]** Crash recovery: resume from DB state, zero duplicate actions
+- ⬜ **[S]** Disagreement handling: conflict card + citation-only verifier call
+- ⬜ **[S]** Generic job planner `pactline_run_job` over the tool registry (side-effect classes enforced by gateway)
 
 ---
 
 ## Phase 4: Frontend — Operator Dashboard
-> **Can be picked up by:** 1–2 people | **Depends on:** Phase 2 API endpoints (can start with mock data) | **Est. effort:** 3–4 days
-> **What this delivers:** The visual dashboard for demo and human-in-the-loop interaction.
+> **Owner:** 1–2 people | **Depends on:** API endpoints (mock data until then) | **Est.:** 3–4 days
 >
-> **Design rule — [Unslop](https://github.com/heydamir/unslop):** Every component below must pass an Unslop review before it is marked done. Run Unslop after each section completes. A component that renders but looks like a default template is **not done**. The dashboard must look like something a procurement manager would trust with real incident data.
+> **Design rule — [Unslop](https://github.com/heydamir/unslop):** every component passes an Unslop review before it is marked done. The dashboard must look like something a procurement manager would trust with real incident data. **Every animation must correspond to a real event in `audit_events`.**
 
 ### 4A — Project Setup & Layout
 - ✅ 👤 ___________ — Initialize frontend project (`apps/frontend`)
@@ -228,205 +208,173 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ✅ Define routes: Dashboard, Incident Detail, Schedule, Compliance, Approvals, Agent Log — `/dashboard`, `/incidents/[id]`, `/schedule`, `/compliance`, `/approvals`, `/agent-log`; route metadata lives in `src/lib/nav.ts`
 - ✅ Set up API client (axios / fetch wrapper) pointing to backend — `src/lib/api.ts` (typed `api`, `apiGet`, `apiPost`, `ApiError`, timeout, optional Zod response validation); base URL from `NEXT_PUBLIC_API_URL` (default `http://localhost:3001`); `apps/api` now allows the web origin via CORS (`WEB_ORIGIN`); sidebar shows live `/health` status
 - ✅ **Unslop check:** layout, typography, color palette, sidebar — own palette and type (Cormorant Garamond, Instrument Sans, IBM Plex Mono), no default shadcn theme, no emoji, no placeholder copy. Screens show an honest empty state naming the endpoint they will read, not invented records. Checked in light, dark and at 390px.
-- 🟡 Note for 4B-4H: each screen body is currently the shared `Pending` state from `src/components/app/screen.tsx`; replace it with the real view as each section is built.
+- 🟡 Note for 4B-4K: each screen body is currently the shared `Pending` state from `src/components/app/screen.tsx`; replace it with the real view as each section is built.
 
 ### 4B — Incident Dashboard (Main View)
-- ⬜ 👤 ___________ — Build the central incident list/card view
-- ⬜ Fetch and display all incidents from `GET /api/incidents`
-- ⬜ Show: severity badge, status chip, affected package, countdown to required-on-site date
-- ⬜ Filter by: status, severity, equipment category
-- ⬜ Sort by: urgency (days to deadline), severity, last updated
-- ⬜ Click-through to incident detail view
-- ⬜ Real-time updates via WebSocket (`WS /ws/incidents`)
-- ⬜ **Unslop check:** cards carry real information density — no "Lorem ipsum", no grey boxes, severity colors are deliberate not default
+- ⬜ 👤 ___________ **[M]** `GET /api/incidents`: severity, status, package, countdown to need date, **P(on-time)**, confidence tier
+- ⬜ **[M]** Filter by status, severity, equipment category; sort by urgency / severity / updated
+- ⬜ **[M]** Real-time via `WS /ws/incidents`
+- ⬜ **[S]** Containment counter ("1 of 3 packages at risk recovered") computed from state, not scripted
+- ⬜ **[M]** **Unslop check**
 
-### 4C — Incident Detail & Timeline View
-- ⬜ 👤 ___________ — Build deep-dive incident page
-- ⬜ Fetch incident detail from `GET /api/incidents/{id}`
-- ⬜ Render chronological timeline of all events, delegations, findings, actions
-- ⬜ Each timeline entry shows: timestamp, event type, summary, source link, confidence
-- ⬜ Expandable detail for each entry (full evidence, raw data)
-- ⬜ Current status and next expected action prominently displayed
-- ⬜ Specialist delegation visualization (which agent did what, when)
-- ⬜ **Unslop check:** timeline is readable at a glance — not a wall of JSON, not a generic list
+### 4C — Incident Detail & Timeline
+- ⬜ 👤 ___________ **[M]** `GET /api/incidents/{id}` timeline: events, delegations, findings, approvals, receipts
+- ⬜ **[M]** Each entry: timestamp, type, summary, source link, confidence tier + reason
+- ⬜ **[M]** Plan steps with version diff on replan
+- ⬜ **[S]** Disagreement card (two citations side by side)
+- ⬜ **[S]** "What did we believe on <date>?" time slider over bi-temporal facts
+- ⬜ **[M]** **Unslop check**
 
-### 4D — Schedule Impact Visualization
-- ⬜ 👤 ___________ — Build schedule/Gantt component
-- ⬜ Fetch schedule data from `GET /api/schedule/impact/{incident_id}`
-- ⬜ Render Gantt chart or dependency graph (Recharts / D3.js / React Flow)
-- ⬜ Highlight: affected activities (red), float consumed (yellow), critical path
-- ⬜ Show before/after comparison when delay is introduced
-- ⬜ Tooltip with activity details on hover
-- ⬜ **Unslop check:** chart labels are legible, colors are purposeful, axis units are visible — not a default Recharts demo
+### 4D — Schedule Impact & Risk
+- ⬜ 👤 ___________ **[M]** `GET /api/schedule/impact/{incident_id}`: Gantt with affected (red), float consumed (amber), critical path
+- ⬜ **[M]** Before/after comparison
+- ⬜ **[S]** Probability fan chart / P(on-time) per recovery option
+- ⬜ **[M]** **Unslop check**
 
-### 4E — Compliance Matrix View
-- ⬜ 👤 ___________ — Build requirement comparison table
-- ⬜ Fetch compliance data from `GET /api/compliance/{package_id}`
-- ⬜ Table: rows = requirements, columns = candidate products A/B/C
-- ⬜ Color coding: ✅ PASS (green), ❌ FAIL (red), ❓ UNKNOWN (yellow), ➖ N/A (gray)
-- ⬜ Mandatory requirements visually distinct from optional
-- ⬜ Clickable evidence references for each finding
-- ⬜ Confidence score displayed per finding
-- ⬜ **Unslop check:** table is scannable — column widths sized to content, mandatory vs optional visually obvious, not a plain HTML table with borders
+### 4E — Compliance Matrix & Evidence Viewer
+- ⬜ 👤 ___________ **[M]** `GET /api/compliance/{package_id}`: rows = requirements, columns = candidates
+- ⬜ **[M]** PASS / FAIL / UNKNOWN / N/A, mandatory vs optional visually distinct, confidence per cell
+- ⬜ **[M]** **Evidence viewer:** click a cell → PDF page with highlighted bbox for spec clause *and* submittal value
+- ⬜ **[S]** Curve overlay: digitized H-Q with uncertainty band and duty point
+- ⬜ **[M]** **Unslop check**
 
 ### 4F — Recovery Plan Comparison
-- ⬜ 👤 ___________ — Build side-by-side recovery option view
-- ⬜ Fetch options from `GET /api/recovery/{incident_id}/options`
-- ⬜ Card per option: projected date, cost delta, risk level, required approvals, blockers
-- ⬜ Visual comparison (bar chart or table)
-- ⬜ Highlight recommended option with reasoning
-- ⬜ **Unslop check:** recommended option is visually distinct without being garish, blocker reasons are human-readable not raw enum values
+- ⬜ 👤 ___________ **[M]** `GET /api/recovery/{incident_id}/options`: card per option (usable date p50, P(on-time), ₹ delta, approvals, blockers)
+- ⬜ **[M]** Frontier chart (P(on-time) vs cost); recommended option with reasons; eliminated options with human-readable reasons
+- ⬜ **[M]** **Unslop check**
 
 ### 4G — Approval Queue
-- ⬜ 👤 ___________ — Build human-in-the-loop approval interface
-- ⬜ List pending approvals with full context
-- ⬜ Show: what is being approved, exact configuration/revision, evidence summary, agent recommendation
-- ⬜ Action buttons: Approve / Reject / Request More Info
-- ⬜ POST decision to `POST /api/approvals/{id}/decide`
-- ⬜ Confirmation and status update after action
-- ⬜ **Unslop check:** approve/reject actions are clearly weighted (destructive action styled differently), context panel shows enough to make a real decision
+- ⬜ 👤 ___________ **[M]** Pending approvals with pinned revisions, evidence summary, recommendation
+- ⬜ **[M]** Approve / Reject (reason required) / Request info → `POST /api/approvals/{id}/decide`
+- ⬜ **[M]** Show invalidated approvals and why (scenario 6)
+- ⬜ **[M]** **Unslop check**
 
 ### 4H — Agent Activity Log
-- ⬜ 👤 ___________ — Build real-time agent action feed
-- ⬜ Stream from `WS /ws/agent-activity` or `GET /api/agents/activity`
-- ⬜ Chronological feed: event received → specialist called → finding returned → action taken
-- ⬜ Each entry: timestamp, agent role, action type, summary, source/evidence link
-- ⬜ Filter by: agent role, action type, incident
-- ⬜ This satisfies Track 01 requirement: "Logs every action it takes and every specialist it calls"
-- ⬜ **Unslop check:** log entries are legible at speed — role badges, action types, and summaries scan without reading every word
+- ⬜ 👤 ___________ **[M]** `WS /ws/agent-activity` / `GET /api/agents/activity`: every event, specialist call, tool call, action
+- ⬜ **[M]** Role badges, action types, model + cost + latency per specialist call
+- ⬜ **[M]** Filter by role, action, incident (satisfies Track 01 "log every action and specialist")
+- ⬜ **[M]** **Unslop check**
+
+### 4I — Vendor Commitment Tracker (from plan doc §17)
+- ⬜ 👤 ___________ **[S]** Promised vs revised vs actual per PO line; silence and staleness markers; slip ratio
+
+### 4J — Evaluation Scorecard Page (new)
+- ⬜ 👤 ___________ **[S]** Render `eval/out/scorecard.md` + calibration and selective-accuracy plots
+
+### 4K — Receiving Check (new)
+- ⬜ 👤 ___________ **[X]** Upload nameplate photo → S9 result card (mobile-friendly)
 
 ---
 
 ## Phase 5: Integration, MCP & End-to-End
-> **Can be picked up by:** 1–2 people (ideally someone who worked on Phase 2 or 3) | **Depends on:** Phase 2 + 3 + 4 (at least partial) | **Est. effort:** 2–3 days
-> **What this delivers:** MCP server, full pipeline wiring, end-to-end demo flow.
+> **Owner:** 1–2 people | **Depends on:** Phases 2–4 (partial) | **Est.:** 2–3 days
 
-### 5A — MCP Server Implementation
-- ⬜ 👤 ___________ — Expose backend as MCP server (required by hackathon)
-- ⬜ Install and configure MCP SDK (TypeScript — `@modelcontextprotocol/sdk` in `apps/mcp`)
-- ⬜ Implement MCP tools:
-  - ⬜ `analyze_schedule_impact` — calls schedule engine
-  - ⬜ `investigate_procurement_issue` — calls investigation agent
-  - ⬜ `check_compliance` — calls compliance evaluator
-  - ⬜ `find_alternatives` — calls sourcing agent
-  - ⬜ `evaluate_recovery_options` — calls recovery planning
-  - ⬜ `get_incident_status` — queries incident manager
-  - ⬜ `submit_approval` — records approval decision
-- ⬜ Structured JSON input/output per tool
-- ⬜ Confidence scores in all outputs
-- ⬜ Source citations in all findings
-- ⬜ Test MCP server with direct calls (verify Amber-callable)
-- ⬜ **[Keploy](https://github.com/keploy/keploy):** record all 7 MCP tool calls during E2E demo replay → regression suite in `apps/mcp/keploy/`
+### 5A — MCP Server
+- ⬜ 👤 ___________ **[M]** `@modelcontextprotocol/sdk` in `apps/mcp`; streamable HTTP + stdio
+- ⬜ **[M]** Specialist tools: `pactline_assess_delivery_risk`, `pactline_investigate`, `pactline_check_submittal`, `pactline_find_equivalents`, `pactline_forecast_lead_time`, `pactline_plan_recovery` (+ `pactline_prequalify_vendor`, `pactline_level_quotes`, `pactline_verify_receipt` when built)
+- ⬜ **[M]** Operator tools: `pactline_get_incident`, `pactline_explain_decision`, `pactline_submit_approval`, `pactline_ingest_event`
+- ⬜ **[M]** Every tool declares `outputSchema`, returns `structuredContent` + short text + `resource_link`s to evidence
+- ⬜ **[M]** Tool annotations (`readOnlyHint`, `destructiveHint`); every call logged to `audit_events`
+- ⬜ **[S]** Resources: `pactline://doc/{id}/page/{n}`, `pactline://incident/{id}/timeline`, `pactline://decision/{id}/audit`
+- ⬜ **[S]** Long-running `pactline_ingest_document` as MCP task backed by DB rows; elicitation for approvals **if** Amber's client supports it, else `NEEDS_HUMAN` + polling
+- ⬜ **[S]** `pactline_run_job` generic planner tool
+- ⬜ **[M]** Test with an MCP client (Inspector / Claude Desktop) — "Amber-callable" proof for video
+- ⬜ **[S]** **Keploy:** record MCP calls during E2E replay → `apps/mcp/keploy/`
 
 ### 5B — End-to-End Pipeline Wiring
-- ⬜ 👤 ___________ — Connect all systems for the demo flow
-- ⬜ Load seed data (Phase 1) into DB (Phase 2A)
-- ⬜ Wire event ingress → world state update → incident trigger → operator dispatch
-- ⬜ Wire operator → specialist delegation → result collection → incident progression
-- ⬜ Wire approval queue → frontend → backend → incident continuation
-- ⬜ Wire follow-up scheduler → operator re-engagement
-- ⬜ Test full incident lifecycle: delay event → detection → investigation → sourcing → compliance → recovery → approval → execution → verification → closure
-- ⬜ Test reopen on second delay
+- ⬜ 👤 ___________ **[M]** Seed → ingress → world state → incident → operator → specialists → plan → approval → outbox → verification → closure
+- ⬜ **[M]** Runs the full [docs/05 trace](05_Reference_Execution_Trace.md); outputs frozen into the doc
+- ⬜ **[M]** Reopen on second delay; approval invalidation on offer/spec revision
 
 ### 5C — Demo Mode & Replay
-- ⬜ 👤 ___________ — Build demo replay capability
-- ⬜ Script event injection from Phase 1D event sequence
-- ⬜ Timed event replay (simulate days passing in seconds/minutes)
-- ⬜ Frontend demo mode: guided walkthrough with annotations explaining each phase
-- ⬜ Reset function to restart demo from scratch
-- ⬜ All synthetic data clearly labeled as synthetic in the UI
+- ⬜ 👤 ___________ **[M]** `scripts/run-demo.ts` injects events with `VirtualClock` (days in seconds)
+- ⬜ **[M]** Reset to clean state; all synthetic data labelled in UI
+- ⬜ **[S]** Guided annotations per phase; kill-worker button for the crash beat
 
-### 5D — Docker Deployment
-- ⬜ 👤 ___________ — Containerize everything for judges
-- ⬜ Dockerfile for backend (Python + FastAPI + agents)
-- ⬜ Dockerfile for frontend (Next.js / React build)
-- ⬜ docker-compose.yml: backend + frontend + DB
-- ⬜ Single `docker compose up` starts everything
-- ⬜ README with setup instructions, model names, cost/response time estimates
-- ⬜ Environment variable for LLM API key
+### 5D — Packaging & Deployment
+- ⬜ 👤 ___________ **[M]** `docker compose up`: Postgres (local) or Neon URL, api, worker, mcp, frontend, doc-parser sidecar
+- ⬜ **[M]** `.env.example` (gateway URL, API key, model IDs per role)
+- ⬜ **[M]** `pactline check <spec> <submittal>` CLI for unseen inputs
+- ⬜ **[X]** `--profile offline`: Ollama with Qwen3-class text + Qwen-VL-class vision, cached public-data snapshots; cloud-vs-local accuracy/latency table
 
 ---
 
-## Phase 6: Submission Deliverables
-> **Can be picked up by:** 1–2 people | **Partially parallel with other phases** | **Est. effort:** 2 days
-> **What this delivers:** Everything needed for the December 6 submission.
+## Phase 6: Evaluation (new — accuracy is 40% of the score)
+> **Owner:** 1 person | **Depends on:** Phase 1E, 2, 3 | **Spec:** [docs/08](08_Evaluation_Plan.md)
 
-### 6A — Demo Video (up to 5 minutes)
-- ⬜ 👤 ___________ — Record end-to-end demo video
-- ⬜ Script the narrative: problem → agent detects → investigates → finds alternatives → compliance check → recovery plan → approval → execution → verification → reopen on new delay
-- ⬜ Show the UI dashboard in action
-- ⬜ Show MCP server being called (Amber integration proof)
-- ⬜ Show structured output + source citations + confidence scores
-- ⬜ Show agent activity log / audit trail
-- ⬜ Label all synthetic data
-- ⬜ Keep under 5 minutes
+- ⬜ 👤 ___________ **[M]** `packages/eval-harness`: 12 mandatory + 4 new scenarios asserting **state, not prose**
+- ⬜ **[M]** `pnpm eval` → `eval/out/scorecard.md`: verdict accuracy, false-PASS count, citation validity, fabrication count, abstention P/R, interval coverage, duplicate writes after crash, unauthorized writes, cost & latency
+- ⬜ **[M]** CI fabrication audit: every cited source exists and contains the cited excerpt/value
+- ⬜ **[M]** Do-nothing baseline row beside our results
+- ⬜ **[S]** Injection suite (~15 docs): attack success rate + benign utility
+- ⬜ **[S]** Calibration plots: reliability diagram, selective-accuracy curve, interval coverage
+- ⬜ **[S]** pass^5 on all scenarios
+- ⬜ **[M]** Freeze and tag `v1-round1` scorecard on Dec 6
 
-### 6B — Pitch Deck (8–10 slides)
-- ⬜ 👤 ___________ — Create pitch deck
-- ⬜ Slide 1: Problem — procurement delays cost millions; human expediting is manual and reactive
-- ⬜ Slide 2: Solution — Pactline: autonomous procurement continuity operator
-- ⬜ Slide 3: How it works — event-driven detection → investigation → recovery → verification
-- ⬜ Slide 4: Architecture — world model, deterministic kernel, specialist agents, MCP interface
-- ⬜ Slide 5: Track 03 specialists — investigation, compliance, sourcing, recovery planning
-- ⬜ Slide 6: Track 01 capabilities — durable execution, crash recovery, long-horizon work
-- ⬜ Slide 7: Compliance matrix + recovery comparison (screenshots)
-- ⬜ Slide 8: Differentiation — closed-loop recovery, not just document analysis or alerts
-- ⬜ Slide 9: Tech stack, models used, cost/response time
-- ⬜ Slide 10: Team + next steps
+---
 
-### 6C — Code Repository & README
-- ⬜ 👤 ___________ — Prepare submission repository
-- ⬜ Clean code with consistent structure
-- ⬜ README with:
-  - ⬜ Project description and track (Track 03 primary, Track 01 supporting)
-  - ⬜ Setup instructions (clone → install → docker compose up)
-  - ⬜ How to run the agent
-  - ⬜ How to run the demo
-  - ⬜ Models used with cost and response time per run
-  - ⬜ Data sources cited
-  - ⬜ Team members and affiliations
-- ⬜ LICENSE file
-- ⬜ .env.example with required environment variables
+## Phase 7: Submission Deliverables
+> **Owner:** 1–2 people | **Partially parallel** | **Spec:** [docs/06](06_Demo_Strategy.md)
 
-### 6D — DevPost Submission
-- ⬜ 👤 ___________ — Submit on DevPost
-- ⬜ Track and challenge selection
-- ⬜ Division selection (Student or Professional)
-- ⬜ Code repository link
-- ⬜ Demo video link
-- ⬜ Pitch deck upload
-- ⬜ Team member names and affiliations
-- ⬜ Written description aligned with pitch deck
+### 7A — Demo Video (≤ 5 minutes)
+- ⬜ 👤 ___________ Follow the beat sheet in docs/06 §3 (problem → Amber calls via MCP → break → proof → options → approval → kill-9 exactly-once → injection blocked → nameplate → reopen → scorecard)
+- ⬜ Every on-screen animation backed by a real event; synthetic data labelled
+- ⬜ Fallback capture of each beat recorded
+
+### 7B — Pitch Deck (9 slides)
+- ⬜ 👤 ___________ Problem · User & job · What Amber gets · Proof not prose · Honest numbers · Trust · Durability · Results · Fit & roadmap (docs/06 §5)
+- ⬜ Only [DOC]-labelled stats from docs/01; no [UNV] figures
+
+### 7C — Repository & README
+- ⬜ 👤 ___________ Description; Track 03 primary + Track 01 supporting
+- ⬜ Setup (clone → `docker compose up`); how to run the agent, the demo, `pnpm eval`, and the BYO-input CLI
+- ⬜ MCP connection instructions (Amber / any MCP client)
+- ⬜ Models used per role with **measured** cost and latency per run
+- ⬜ Data sources (`data/SOURCES.md`) and how synthetic data was built
+- ⬜ Team members and affiliations; LICENSE; `.env.example`
+
+### 7D — DevPost Submission (by Dec 6, 23:45 IST)
+- ⬜ 👤 ___________ Track and challenge, division (Student / Professional)
+- ⬜ Repo link, video link, deck upload, team names + affiliations
+- ⬜ Written description aligned with the deck
+
+### 7E — Organizer Questions (send by Nov 29)
+- ⬜ 👤 ___________ Which MCP revision/transport does Amber's client use; elicitation & tasks support?
+- ⬜ Will judges run the repo locally or call a hosted MCP endpoint?
+- ⬜ Confirm Track 03 entry with Track 01 durability as supporting is acceptable
 
 ---
 
 ## Phase Dependency Map
 
-```
-Phase 1 (Data)  ──────────────────┐
-                                   │
-Phase 2 (Backend Core) ───────────┼──→ Phase 5 (Integration & MCP)
-                                   │          │
-Phase 3 (Agent Layer) ────────────┘          │
-         ↑ depends on 2A, 2D                  │
-                                              ↓
-Phase 4 (Frontend) ───────────────────→ Phase 5 (Integration)
-         ↑ can start with mock data           │
-                                              ↓
-Phase 6 (Deliverables) ←─────────────── Phase 5 complete
-         ↑ pitch deck & README can start early
+```mermaid
+flowchart LR
+  P0["Phase 0<br/>Shared contract"] --> P2["Phase 2<br/>Kernel"]
+  P0 --> P3["Phase 3<br/>Specialists + Operator"]
+  P1["Phase 1<br/>Data"] --> P2
+  P1 --> P3
+  P1 --> P6["Phase 6<br/>Evaluation"]
+  P2 --> P3
+  P2 --> P5["Phase 5<br/>MCP + E2E"]
+  P3 --> P5
+  P4["Phase 4<br/>Frontend (mock first)"] --> P5
+  P5 --> P6
+  P6 --> P7["Phase 7<br/>Submission"]
+  P5 --> P7
 ```
 
-## Parallelism Guide
+## 9-Day Plan (Nov 27 → Dec 6)
 
-| Day | Person A (Backend) | Person B (Backend/Agents) | Person C (Frontend) | Person D (Data/Deliverables) |
+| Day | Person A (Kernel) | Person B (Agents) | Person C (Frontend) | Person D (Data / Eval / Deliverables) |
 | --- | --- | --- | --- | --- |
-| 1–2 | Phase 2A, 2B (DB + Schedule Engine) | Phase 2C, 2D (Incident SM + Events) | Phase 4A, 4B (Setup + Dashboard) | Phase 1A, 1B (Schedule + Equipment data) |
-| 3–4 | Phase 2E, 2F (Gateway + Compliance) | Phase 3A, 3B (Agent Framework + Operator) | Phase 4C, 4D (Detail + Gantt) | Phase 1C, 1D (Specs + Demo script) |
-| 5–6 | Phase 3C, 3D (Investigation + Engineering agents) | Phase 3E, 3F (Sourcing + Recovery) | Phase 4E, 4F, 4G (Compliance + Recovery + Approvals) | Phase 6B (Pitch deck draft) |
-| 7–8 | Phase 5A (MCP Server) | Phase 5B (E2E Wiring) | Phase 4H + 5C (Agent Log + Demo mode) | Phase 5D (Docker) |
-| 9–10 | Bug fixes + testing | Bug fixes + testing | Polish + demo mode | Phase 6A, 6C, 6D (Video + README + Submit) |
+| Nov 27–28 | Phase 0 contract; 2A schema + seed | 3A framework; 3B layout parse | 4B dashboard on mocks | 1A/1B fixtures; start 1C datasheet collection; send 7E questions |
+| Nov 29–30 | 2C incident SM; 2D ingress + taint | S1 (MC on CPM), S2 | 4C timeline; 4E matrix + evidence viewer | 1C curves digitized; 1D events + injection docs |
+| Dec 1–2 | 2E gateway + outbox + reconcile; 2F pump evaluator | S3 compliance, S4 equivalents | 4D schedule; 4F recovery | 1E eval sets; Phase 6 harness skeleton |
+| Dec 3 | 2B Monte Carlo counterfactuals; 2G conflict detector | S5 lead time, S6 recovery; 3D operator | 4G approvals; 4H agent log | **Freeze held-out**; scenarios 1–12 |
+| Dec 4 | 5A MCP server | S7 / S9 (should) | 5C demo mode | scorecard + plots; deck draft |
+| Dec 5 | 5B E2E trace + bug fixes | bug fixes; grounding validator | Unslop polish; 4J scorecard | record video; README |
+| Dec 6 | 5D compose + CLI; tag `v1-round1` | final eval run | final polish | **submit by 23:45 IST** |
 
 ---
 
-> **Remember:** Track 03 says "a suite that covers as much of the procurement workflow as possible, without trading away depth." Each specialist must be **world-class at its job**, not a thin wrapper. The judges want something "a procurement manager would use tomorrow."
+> **Remember:** Track 03 wants "a suite that covers as much of the procurement workflow as possible, without trading away depth". A specialist ships only if it passes the depth bar in [docs/03 §5](03_Agent_Suite_Specification.md): works on unseen input, cites every field, abstains correctly at least once, has a hand-checkable deterministic core, and reports model cost and latency. Judges are 40% accuracy — **an honest UNKNOWN beats a confident wrong answer.**

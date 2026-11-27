@@ -32,118 +32,9 @@ procurement documents ],**
 > **North star:** Build a narrow, domain-specific AI operator that takes responsibility for a real business function from start to finish, then continues monitoring, maintaining and improving the outcome. The system must do authorized work, not merely explain or report it.
 > 
 
-**Status (updated November 25, 2026):** Pactline — Phase 5 runtime architecture and technical stack agreed, as confirmed by the user. See [Pactline — Phase 5 Runtime & System Architecture](https://app.notion.com/p/Pactline-Phase-5-Runtime-System-Architecture-39c084f5e0fb82f2a0c901c146d9b65a?pvs=21)
+**Status (updated November 27, 2026):** Research-driven expansion **proposed** — see §20 and the new doc set in [docs/README.md](README.md). Suite expanded from 3 to 9 MCP-callable specialists with must/should/stretch tiers; evaluation harness promoted to a product feature; positioning sharpened to "mechanical/cooling continuity specialist for Amber". Phase 5 architecture (below) unchanged. Awaiting team confirmation before §20 items are marked agreed.
 
----
-
-## 17. Frontend (UI) — Things to Build (November 25, 2026)
-
-**Goal:** A clean, operator-focused dashboard that surfaces the agent's real-time state to procurement teams — not a chatbot wrapper. The UI must demonstrate that our system is an **autonomous operator with a visible audit trail**, not just an LLM behind a text box. Judges (and real users) should be able to follow the agent's reasoning, decisions, evidence, and actions at a glance.
-
-### 17.1 Core UI Components
-
-| Component | Purpose | Key Details |
-| --- | --- | --- |
-| **Incident Dashboard** | Central command view for all active/closed procurement incidents | List/card view with severity, status (DETECTED → CLOSED lifecycle), affected packages, countdown to required-on-site date. Filterable by status, severity, equipment category. |
-| **Incident Detail View** | Deep-dive into a single incident's full lifecycle | Timeline/swimlane of every event, investigation finding, specialist delegation, compliance result, recovery option, approval, action receipt, and verification. Source-linked evidence for every step. |
-| **Schedule Impact Visualizer** | Show how procurement delays propagate to project activities | Gantt-style or dependency graph highlighting affected activities, float consumed, critical path impact. Deterministic — computed from schedule engine, not LLM. |
-| **Compliance Matrix** | Requirement-by-requirement pass/fail/unknown table for each candidate product | Columns: requirement (source-linked), candidate A/B/C findings, evidence refs, evaluator confidence. Color-coded mandatory vs. optional. |
-| **Recovery Plan Comparison** | Side-by-side view of recovery options | Options: expedite, substitute (product A/B/C), split, resequence. Each with projected usable date, cost delta, risk, required approvals, blockers. |
-| **Approval Queue** | Human-in-the-loop approval interface | Shows pending approvals with full context: what is being approved, the exact configuration/revision, evidence, agent recommendation, and approve/reject/request-more-info actions. |
-| **Agent Activity Log** | Complete audit trail of every agent action | Chronological log of events received, specialist tasks delegated, tool calls made, findings returned, actions taken. Each entry links to source evidence. Required by Track 01 rules: "Logs every action it takes and every specialist it calls." |
-| **Vendor Commitment Tracker** | Track vendor promises vs. actuals over time | Timeline of promised dates, revised dates, evidence of each change. Highlights vendor silence, stale updates, and credibility patterns. |
-| **World State Explorer** | Browse the current procurement world model | Navigate project → packages → PO lines → milestones → requirements → findings. See current state, history, and linked incidents. For demo clarity and debugging. |
-
-### 17.2 UI Requirements (Aligned with Hackathon Rules)
-
-- **Structured output display:** Every agent response rendered as structured data (JSON viewer + formatted view), not free text — per Track 03 and "What Every Entry Must Do" requirements.
-- **Source traceability:** Every finding, recommendation, and action links back to the document, page, row, curve, or data point it came from. Clickable source references.
-- **Confidence indicators:** Show confidence scores on compliance findings and agent recommendations. Clear visual distinction between PASS / FAIL / UNKNOWN / NOT_APPLICABLE.
-- **MCP server callable:** UI is optional for Amber integration; the system exposes MCP server endpoints that Amber can call directly. The UI is for human operators and demo judges.
-- **Real-time updates:** WebSocket/SSE connection so the dashboard updates live as events arrive and agents act. No manual refresh.
-- **Demo mode:** A guided walkthrough mode that replays the synthetic pump incident end-to-end, highlighting each phase of the lifecycle. Essential for the 5-minute demo video.
-
-### 17.3 Tech Stack (Proposed)
-
-- **Framework:** Next.js 14+ (App Router) or React + Vite — fast to build, good for SSR/static.
-- **UI library:** shadcn/ui + Tailwind CSS — professional look with minimal effort.
-- **Charts/Visualizations:** Recharts or D3.js for schedule Gantt, dependency graphs. React Flow for agent delegation visualization.
-- **State management:** Zustand or React Query for server state.
-- **Real-time:** WebSocket or Server-Sent Events for live incident updates.
-- **Deployment:** Docker container alongside backend; or Vercel for quick demo.
-
----
-
-## 18. Backend — Things to Build (November 25, 2026)
-
-**Goal:** The deterministic kernel + agent orchestration runtime that actually performs procurement recovery work. This is the product — the UI is a window into it. Everything below maps to the domain model (Phase 3), agent design (Phase 4), and runtime architecture (Phase 5).
-
-### 18.1 Core Backend Systems
-
-| System | Purpose | Key Details |
-| --- | --- | --- |
-| **Event Ingress & Normalization** | Accept and normalize external events (vendor updates, schedule changes, submittal uploads, etc.) | REST/webhook endpoints + message queue. Deduplication by source_event_id. Out-of-order handling with version/effective-date rules. Envelope: event_id, type, project_id, subject, timestamps, source, evidence_ref, payload. |
-| **World State Store** | Persistent procurement world model per Phase 3 | PostgreSQL or SQLite for the prototype. All entities from Phase 3: Project, Activity, EquipmentPackage, MaterialNeed, PO/POLine, VendorCommitment, RequirementSet, ProductConfiguration, ComplianceFinding, Incident, RecoveryPlan, Approval, ActionReceipt, etc. Versioned records with full history. |
-| **Schedule Engine** | Deterministic CPM/float computation | Pure computation — no LLM. Inputs: activities, dependencies, calendars, constraints. Outputs: early/late dates, float, critical path, impact of delay on downstream activities. Recomputes on schedule revision or forecast change. |
-| **Incident Manager** | Create, transition, and enforce incident lifecycle | State machine: DETECTED → INVESTIGATING → PLANNING → AWAITING_APPROVAL → EXECUTING → MITIGATED → VERIFYING → CLOSED (+ ESCALATED/BLOCKED). Enforces invariants from Phase 3: no closure without verified acceptance, no duplicate allocation, reopening on new evidence. |
-| **Agent Orchestrator** | Dispatch specialist tasks and manage delegation graph | Implements the Phase 4 delegation contract. Sends tasks to specialists with scoped inputs, collects structured results, validates schema/versions on return. Bounded delegation — no uncontrolled spawning. Parallel dispatch for independent tasks. |
-| **Procurement Operator (LLM Agent)** | Main reasoning agent that owns incidents | Receives events/tasks, decides next steps, delegates to specialists, proposes recovery plans, requests approvals, coordinates execution. Uses world state + incident history as context. Persistent across events (durable execution). |
-| **Specialist Agents (LLM)** | Investigation, Engineering Compliance, Alternative Sourcing | Each implements a bounded role from Phase 4 table. Structured input/output per delegation contract. Returns evidence-backed findings, not world-state writes. |
-| **Policy & Execution Gateway** | Enforce authority and idempotency before any action | Independent of LLM. Checks: is this action within scope? Is the approval valid for this exact revision? Has this action already been attempted (idempotency key)? Are preconditions met? Logs intent before execution, confirms receipt after. |
-| **Compliance Evaluator** | Deterministic requirement checking where possible | Typed predicates (head >= X at flow Y, motor compatibility, dimensions). Deterministic interpolation for curves. LLM assists extraction; evaluation is code. PASS/FAIL/UNKNOWN with evidence refs. |
-| **Action Outbox & Receipt Store** | Track every external action taken | Idempotent write pattern. Records: intent, authorization, external call, response, confirmed/uncertain status. Prevents duplicate emails, orders, vendor contacts. Reconciliation on uncertain outcomes. |
-| **Follow-up Scheduler** | Timer-based follow-ups and monitoring | Scheduled checks: vendor response deadlines, approval expiry, re-verification after mitigation, periodic monitoring of "recovered" items. Wakes operator on timeout or new event. |
-
-### 18.2 MCP Server Interface (Required by Hackathon)
-
-The entire backend exposes an MCP server so Amber can call our specialists directly:
-
-| MCP Tool | Description | Input | Output |
-| --- | --- | --- | --- |
-| `analyze_schedule_impact` | Compute delay impact on project activities | PO/item ID, revised forecast date, schedule revision | Affected activities, float consumed, critical path impact, risk level |
-| `investigate_procurement_issue` | Investigate root cause of a procurement exception | Incident ID, known facts, conflicting data points | Supported hypotheses, confirmed facts, missing evidence, next questions |
-| `check_compliance` | Evaluate product against specification requirements | Requirement set revision, product configuration ID, evidence refs | Per-requirement PASS/FAIL/UNKNOWN findings with evidence citations |
-| `find_alternatives` | Search for alternative products/suppliers | Required specifications, quantity, location, latest viable date | Candidate products, availability, lead time, compliance summary, source refs |
-| `evaluate_recovery_options` | Compare recovery strategies | Incident ID, available options, constraints | Ranked options with schedule/cost/risk trade-offs, prerequisites, approval needs |
-| `get_incident_status` | Return current state of a procurement incident | Incident ID | Full incident state, timeline, pending actions, blockers |
-| `submit_approval` | Record a human approval decision | Approval ID, decision (approve/reject/request-info), exact revision | Updated approval record, triggered next steps |
-
-### 18.3 Data Layer
-
-- **Synthetic dataset (for prototype/demo):** One commercial HVAC project with schedule (10–15 activities with dependencies), 3–5 equipment packages (focus on chilled-water pumps), PO lines, vendor milestone plans, 2–3 manufacturer product catalogs with performance curves, specification requirements. All clearly labeled as synthetic.
-- **Seed events for demo:** Vendor delay announcement, stale vendor silence, submittal with deviations, alternative product offers (one pass, one mandatory fail, one unknown), approval grant, shipment receipt, inspection result, second delay triggering reopen.
-- **Data format:** JSON for events and API contracts. Structured DB for world state. Markdown/PDF for simulated specs and submittals (to test document understanding).
-
-### 18.4 Tech Stack (Proposed)
-
-- **Language:** Python 3.11+ (fastest for LLM tooling, agent frameworks, and prototype speed).
-- **Framework:** FastAPI for REST/webhook endpoints. MCP SDK for MCP server.
-- **Agent framework:** LangGraph or custom orchestrator with durable state. Evaluate Temporal for durable execution if complexity warrants.
-- **LLM:** Gemini 2.5 Pro / Flash for agent reasoning. Keep model names and rough cost/response time documented per hackathon rules.
-- **Database:** PostgreSQL (or SQLite for quick prototype). SQLAlchemy or raw SQL.
-- **Schedule engine:** Custom CPM implementation or python-gantt / criticalpath library.
-- **Document processing:** LLM-based extraction from specs/submittals + structured validation code.
-- **Message queue:** Redis Streams or in-process queue for prototype. Event-driven architecture.
-- **Deployment:** Docker Compose (backend + DB + frontend). Single `docker compose up` for judges.
-
----
-
-## 19. Integration Points — Frontend ↔ Backend (November 25, 2026)
-
-| Endpoint / Channel | Direction | Purpose |
-| --- | --- | --- |
-| `GET /api/incidents` | FE → BE | List all incidents with filters |
-| `GET /api/incidents/{id}` | FE → BE | Full incident detail + timeline |
-| `GET /api/incidents/{id}/timeline` | FE → BE | Event-by-event audit trail |
-| `GET /api/schedule/impact/{incident_id}` | FE → BE | Schedule impact visualization data |
-| `GET /api/compliance/{package_id}` | FE → BE | Compliance matrix for a package |
-| `GET /api/recovery/{incident_id}/options` | FE → BE | Recovery plan comparison data |
-| `POST /api/approvals/{id}/decide` | FE → BE | Submit approval decision |
-| `GET /api/agents/activity` | FE → BE | Agent activity log stream |
-| `WS /ws/incidents` | BE → FE | Real-time incident updates |
-| `WS /ws/agent-activity` | BE → FE | Live agent action stream |
-| `POST /api/events/ingest` | External → BE | Webhook for external events (vendor, schedule) |
-| MCP server (stdio/SSE) | Amber → BE | Direct agent-to-agent integration | for the authoritative baseline. Track 03 primary with Track 01 capabilities. Next: implementation of the deterministic kernel and evaluation harness; UI deferred. Exact commercial niche/customer validation, authentic fixture selection and model IDs remain open. Earlier phase notes preserve historical proposals and are superseded by the agreed architecture where they conflict.
+**Status (November 25, 2026):** Pactline — Phase 5 runtime architecture and technical stack agreed, as confirmed by the user. See [Pactline — Phase 5 Runtime & System Architecture](https://app.notion.com/p/Pactline-Phase-5-Runtime-System-Architecture-39c084f5e0fb82f2a0c901c146d9b65a?pvs=21) for the authoritative baseline. Track 03 primary with Track 01 capabilities. Next: implementation of the deterministic kernel and evaluation harness; UI deferred. Exact commercial niche/customer validation, authentic fixture selection and model IDs remain open. Earlier phase notes preserve historical proposals and are superseded by the agreed architecture where they conflict.
 
 **Source:** ChatGPT strategy conversation on November 16, 21 and 23, 2026. This is a structured record of the discussion and decisions, not a verbatim transcript.
 
@@ -614,7 +505,7 @@ Implement three genuinely distinct model-driven specialists (investigation, engi
 - **Real-time updates:** WebSocket/SSE connection so the dashboard updates live as events arrive and agents act. No manual refresh.
 - **Demo mode:** A guided walkthrough mode that replays the synthetic pump incident end-to-end, highlighting each phase of the lifecycle. Essential for the 5-minute demo video.
 
-### 17.3 Tech Stack (Proposed)
+### 17.3 Tech Stack (Proposed — superseded Nov 26: built as Next.js 15 App Router + React 19 + Tailwind v4 + owned shadcn components in `apps/frontend`; see checklist 4A)
 
 - **Framework:** Next.js 14+ (App Router) or React + Vite — fast to build, good for SSR/static.
 - **UI library:** shadcn/ui + Tailwind CSS — professional look with minimal effort.
@@ -647,6 +538,8 @@ Implement three genuinely distinct model-driven specialists (investigation, engi
 
 ### 18.2 MCP Server Interface (Required by Hackathon)
 
+> **Superseded Nov 27 (proposed):** the 7 tools below are replaced by the 9 specialist tools + 6 operator tools in [03 Agent Suite §2](03_Agent_Suite_Specification.md), all returning the shared `SpecialistResult` envelope. Kept for history.
+
 The entire backend exposes an MCP server so Amber can call our specialists directly:
 
 | MCP Tool | Description | Input | Output |
@@ -665,7 +558,7 @@ The entire backend exposes an MCP server so Amber can call our specialists direc
 - **Seed events for demo:** Vendor delay announcement, stale vendor silence, submittal with deviations, alternative product offers (one pass, one mandatory fail, one unknown), approval grant, shipment receipt, inspection result, second delay triggering reopen.
 - **Data format:** JSON for events and API contracts. Structured DB for world state. Markdown/PDF for simulated specs and submittals (to test document understanding).
 
-### 18.4 Tech Stack (Proposed)
+### 18.4 Tech Stack (Proposed — superseded Nov 25 by Phase 5: TypeScript/Node 24, Neon Postgres + Drizzle, LangChain behind `AgentWorkers`, transactional outbox; see AGENTS.md §3. Python appears only as an optional document-parsing sidecar per §20.)
 
 - **Language:** Python 3.11+ (fastest for LLM tooling, agent frameworks, and prototype speed).
 - **Framework:** FastAPI for REST/webhook endpoints. MCP SDK for MCP server.
@@ -695,3 +588,50 @@ The entire backend exposes an MCP server so Amber can call our specialists direc
 | `WS /ws/agent-activity` | BE → FE | Live agent action stream |
 | `POST /api/events/ingest` | External → BE | Webhook for external events (vendor, schedule) |
 | MCP server (stdio/SSE) | Amber → BE | Direct agent-to-agent integration |
+---
+
+## 20. Research-driven expansion — November 27, 2026
+
+**Status:** **Proposed**, pending team confirmation. Produced from four parallel research streams (prior-submission repo review, Track 03 specialist depth, competition and judging, agent techniques). Full evidence in [01 Research Synthesis](01_Research_Synthesis.md); design in [03](03_Agent_Suite_Specification.md)–[08](08_Evaluation_Plan.md). Nothing in this section overrides AGENTS.md invariants or the Phase 5 architecture.
+
+### 20.1 What we learned (evidence-labelled)
+
+| Finding | Label | Consequence |
+| --- | --- | --- |
+| Round 1 weights: Accuracy 40%, Customer value 30%, Trust 20%, Build 10%; judges (Kaya + Edition 1 top 10) try agents on realistic examples | DOC | Unseen-input path + eval harness are first-class features |
+| Kaya's Atlas/Amber story is electrical-first (transformers, switchgear, SLDs) | DOC | Position Pactline as the mechanical/cooling continuity specialist |
+| Edition 1 entries crowded bid leveling, RAG over PDFs, dashboards, point-estimate delivery risk | DOC | Lead with physics-based compliance + closed-loop recovery + durability |
+| AI Expediter's falsifiable hidden-truth evaluation was the strongest Edition 1 idea | DOC (project page) | Publish a scorecard with a do-nothing baseline and held-out set |
+| Prior submission "Downstream" had no MCP, a thin LLM role, refused sourcing/recovery, but excellent doc discipline | DOC (repo) | Borrow: execution trace, canonical dataset spec, confidence ⟂ severity, grounding validator, scored demo choice. Beat: MCP-native, real extraction, recovery + execution |
+| Pumps absent from public lead-time indices (SourceBlue Q2 2026) | DOC | Honest-range forecasting that widens when data is thin |
+| ISO 9906 / HI tolerance and operating-region values conflict across secondary sources | UNV | Verify from the standard before encoding |
+
+### 20.2 Proposed decisions
+
+| # | Decision | Supersedes |
+| --- | --- | --- |
+| D1 | Expand from 3 model-driven specialists to a **9-specialist suite** (S1 Delivery Risk, S2 Investigation, S3 Spec & Submittal Compliance, S4 Product Discovery, S5 Lead-Time Forecast, S6 Recovery Planner, S7 Vendor Pre-Qual, S8 Quote Leveling, S9 Receiving Verification) tiered Must / Should / Stretch | §16 MVP recommendation (kept as history) |
+| D2 | One shared `SpecialistResult` envelope (`SourceRef` with verbatim excerpt, `Confidence` with tier + reason + method, `Finding`, `HumanHandoff`, `EntityRef`) enforced by a validator with a **no-invention rule** | §18.2 tool table |
+| D3 | Confidence tier and severity are independent axes; INSUFFICIENT_EVIDENCE never reaches a human as a recommendation; stale evidence caps tier | — |
+| D4 | Add **Monte Carlo over CPM** (P(on-time), criticality index) and counterfactual ΔP(on-time) per recovery option | extends §18 schedule engine |
+| D5 | Lead-time forecasts as **split-conformal intervals** with STOCKED vs ETO regimes; synthetic calibration labelled as such | — |
+| D6 | **Curve digitization** (vision, self-ensembled, PCHIP) feeding the deterministic pump evaluator; calibrated abstention when margin < extraction error | extends §15 predicate design |
+| D7 | **CaMeL-lite** untrusted-input handling: quarantined narrow-schema extraction, taint tracking, gateway policy forbidding tainted args to side effects; measured injection suite | strengthens scenario 12 |
+| D8 | **Bi-temporal facts**, **plan-as-data**, **entity links**, **specialist tasks**, **audit events** added to the world model | extends §15 |
+| D9 | **Conflict detector** over typed assertions instead of multi-agent debate | — |
+| D10 | **Generic job planner** (`pactline_run_job`) over a tool registry with side-effect classes — Track 01 "any job" story at low cost | — |
+| D11 | Evaluation expanded to 16 scenarios + published scorecard; held-out set frozen Dec 3; v1 tagged Dec 6 for Round 2 improvement tracking | AGENTS.md §6 (extended, not replaced) |
+| D12 | Dataset stays India-consistent (400 V / 3 ph / 50 Hz, metric, ₹); real manufacturers appear only as cited product sources, never as sandbox counterparties | §14 dataset notes |
+
+### 20.3 Explicitly deferred / rejected
+
+- **Deferred:** live vendor discovery (stretch), CourtListener-style legal checks, ColPali retrieval, time-series foundation models, a second full equipment module (stub only).
+- **Rejected:** multi-agent debate for verification (converges on confident errors; voting + deterministic cross-checks preferred); Kafka/Neo4j-style multi-service infrastructure (one Postgres owns state); chat-first UI.
+
+### 20.4 Questions for organizers (send by Nov 29)
+
+Amber's MCP revision/transport and support for elicitation and tasks; whether judges run repos locally or call hosted endpoints; confirmation that a Track 03 entry with Track 01 durability as supporting is acceptable.
+
+### 20.5 New documents
+
+[README index](README.md) · [01 Research Synthesis](01_Research_Synthesis.md) · [02 Product Thesis](02_Product_Thesis.md) · [03 Agent Suite](03_Agent_Suite_Specification.md) · [04 Workflows & Diagrams](04_System_Workflows.md) · [05 Reference Execution Trace](05_Reference_Execution_Trace.md) · [06 Demo Strategy](06_Demo_Strategy.md) · [07 Canonical Demo Dataset](07_Canonical_Demo_Dataset.md) · [08 Evaluation Plan](08_Evaluation_Plan.md) · [Checklist](checklist.md) (re-planned with tiers and a 9-day schedule).
