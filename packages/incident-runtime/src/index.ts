@@ -4,4 +4,5 @@
 // tickTasks: collect completed specialist task results
 // tickOutbox: flush pending action_receipts via ExecutionGateway
 // Clock interface: real time in prod, VirtualClock in eval harness
-export {};
+
+export * from "./incident-runtime.js";
