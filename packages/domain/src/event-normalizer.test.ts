@@ -187,10 +187,27 @@ describe("EventNormalizer", () => {
         },
       };
 
-      const result = EventNormalizer.normalize(raw);
+      const result = EventNormalizer.normalize(raw, { trustedSources: ["internal-system"] });
 
       expect(result.success).toBe(true);
       expect(result.event?.tainted_fields).toHaveLength(0);
+    });
+
+    it("should taint a vendor event that merely claims an internal-looking source", () => {
+      const raw = {
+        event_id: "550e8400-e29b-41d4-a716-446655440000",
+        type: "VendorCommitmentChanged",
+        project_id: "proj-001",
+        subject_type: "POLine",
+        subject_id: "pol-001",
+        occurred_at: "2026-12-14T09:00:00Z",
+        received_at: "2026-12-14T09:05:00Z",
+        source: "internal-system",
+        payload: { revised_arrival_date: "2027-01-07" },
+      };
+
+      expect(EventNormalizer.normalize(raw).event?.tainted_fields).toContain("payload.revised_arrival_date");
+      expect(EventNormalizer.normalize({ ...raw, source: "new-connector" }).event?.tainted_fields).toContain("payload.revised_arrival_date");
     });
 
     it("should mark supplier response fields as tainted", () => {
@@ -242,6 +259,16 @@ describe("EventNormalizer", () => {
       expect(result.event?.tainted_fields).toContain("payload.revised_arrival_date");
       expect(result.event?.tainted_fields).not.toContain("payload.reason");
       expect(result.event?.tainted_fields).not.toContain("payload.vendor_contact");
+    });
+  });
+
+  describe("Series key", () => {
+    const ev = (id: string | null) => ({ source: "vendor-email", source_event_id: id }) as Parameters<typeof EventNormalizer.getSeriesKey>[0];
+    it("is shared by every revision of one source event", () => {
+      expect(EventNormalizer.getSeriesKey(ev("evt-001-v1"))).toBe("vendor-email:evt-001");
+      expect(EventNormalizer.getSeriesKey(ev("evt-001-v2"))).toBe("vendor-email:evt-001");
+      expect(EventNormalizer.getSeriesKey(ev("evt-001"))).toBe("vendor-email:evt-001");
+      expect(EventNormalizer.getSeriesKey(ev(null))).toBeNull();
     });
   });
 

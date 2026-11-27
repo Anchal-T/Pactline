@@ -70,6 +70,15 @@ const UNTRUSTED_FIELD_PATTERNS: Record<string, string[]> = {
   ],
 };
 
+export interface NormalizeOptions {
+  /**
+   * Sources the deployment itself vouches for, supplied by the caller from its own configuration (for example the
+   * authenticated connector that received the event). The event's own `source` string is untrusted input and
+   * is never enough: anything not listed here is treated as external and its fields are tainted.
+   */
+  trustedSources?: readonly string[];
+}
+
 /**
  * Event Normalizer
  *
@@ -84,7 +93,7 @@ export class EventNormalizer {
   /**
    * Normalize an incoming event envelope
    */
-  static normalize(raw: unknown): NormalizationResult {
+  static normalize(raw: unknown, opts: NormalizeOptions = {}): NormalizationResult {
     // Validate schema
     const parseResult = EventEnvelopeSchema.safeParse(raw);
     if (!parseResult.success) {
@@ -128,7 +137,7 @@ export class EventNormalizer {
     }
 
     // Identify tainted fields based on source and event type
-    const taintedFields = this.identifyTaintedFields(envelope);
+    const taintedFields = this.identifyTaintedFields(envelope, opts.trustedSources ?? []);
 
     const normalized: NormalizedEvent = {
       event_id: envelope.event_id,
@@ -157,19 +166,9 @@ export class EventNormalizer {
    * Identify fields that should be marked as tainted (untrusted)
    * based on the event source and type
    */
-  private static identifyTaintedFields(envelope: EventEnvelope): string[] {
-    // External sources are untrusted by default
-    const untrustedSources = [
-      "sandbox-vendor-email",
-      "vendor-email",
-      "vendor-portal",
-      "supplier-system",
-      "external-erp",
-    ];
-
-    if (!untrustedSources.some(src => envelope.source.includes(src))) {
-      return []; // Internal or trusted source
-    }
+  private static identifyTaintedFields(envelope: EventEnvelope, trustedSources: readonly string[]): string[] {
+    // Default to untrusted: only a source the caller explicitly vouches for is exempt.
+    if (trustedSources.includes(envelope.source)) return [];
 
     // Get untrusted field patterns for this event type
     const patterns = UNTRUSTED_FIELD_PATTERNS[envelope.type] || [];
@@ -213,6 +212,17 @@ export class EventNormalizer {
       return null;
     }
     return `${event.source}:${event.source_event_id}`;
+  }
+
+  /**
+   * Identity shared by every revision of one source event: "evt-001-v1" and "evt-001-v2" are the same series.
+   * Use it to compare versions; use getDeduplicationKey (full id) to detect exact redeliveries.
+   */
+  static getSeriesKey(event: NormalizedEvent): string | null {
+    if (!event.source_event_id) {
+      return null;
+    }
+    return `${event.source}:${event.source_event_id.replace(/-v\d+$/, "")}`;
   }
 
   /**

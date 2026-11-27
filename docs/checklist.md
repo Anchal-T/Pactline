@@ -131,18 +131,18 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ⬜ **[S]** **Keploy:** record `POST /api/events/ingest` during demo replay → `apps/api/keploy/`
 
 ### 2C — Incident State Machine
-- 🟡 👤 ___________ **[M]** Implement incident lifecycle manager using the existing states, including `CLOSED` per [docs/04 §3](04_System_Workflows.md). [Domain entities](../packages/domain/src/entities.ts)
-- ⬜ **[M]** Define valid transitions with preconditions
-- ⬜ **[M]** Enforce invariants: require verified accepted quantity or valid waiver with schedule disposition before closure; no duplicate procurement allocation; reopen from `MITIGATED` on new evidence; owner + next action/blocker + review deadline on every open incident
-- ⬜ **[M]** Optimistic version checks; transition audit log
-- ⬜ **[M]** Unit tests for valid/invalid transitions
+- ✅ 👤 ___Abhishek________ **[M]** Implement incident lifecycle manager using the existing states, including `CLOSED` per [docs/04 §3](04_System_Workflows.md). [Domain entities](../packages/domain/src/entities.ts)
+- ✅ **[M]** Define valid transitions with preconditions
+- ✅ **[M]** Enforce invariants: require verified accepted quantity or valid waiver with schedule disposition before closure; no duplicate procurement allocation; reopen from `MITIGATED` on new evidence; owner + next action/blocker + review deadline on every open incident
+- ✅ **[M]** Optimistic version checks; transition audit log
+- ✅ **[M]** Unit tests for valid/invalid transitions
 
 ### 2D — Event Ingress & Normalization
-- 🟡 👤 ___________ **[M]** Align the event envelope and fixture IDs (UUIDs vs `evt-001` in delay fixture). [Event schema](../packages/domain/src/events.ts)
-- 🟡 **[M]** Wire `POST /api/events/ingest` to validate the envelope and call `IncidentRuntime.ingestEvent()`. [Event route](../apps/api/src/routes/events.ts)
-- ⬜ **[M]** Dedupe by `(source, source_event_id)`; out-of-order handling by `source_version`/effective date
-- ⬜ **[M]** Propagation: record `VendorCommitmentChanged` in append-only history → PO line forecast → need → impact → incident trigger
-- ⬜ **[M]** **Taint marking** on untrusted fields; deterministic cross-checks promote to `verified`
+- ✅ 👤 ___Abhishek________ **[M]** Align the event envelope and fixture IDs (UUIDs vs `evt-001` in delay fixture). [Event schema](../packages/domain/src/events.ts)
+- ✅ **[M]** Wire `POST /api/events/ingest` to validate the envelope and call `IncidentRuntime.ingestEvent()`. [Event route](../apps/api/src/routes/events.ts)
+- ✅ **[M]** Dedupe by `(source, source_event_id)`; out-of-order handling by `source_version`/effective date
+- 🟡 **[M]** Propagation: record `VendorCommitmentChanged` in append-only history → PO line forecast → need → impact → incident trigger
+- ✅ **[M]** **Taint marking** on untrusted fields; deterministic cross-checks promote to `verified`
 
 ### 2E — Policy & Execution Gateway
 - ⬜ 👤 ___________ **[M]** Action classes `READ | DRAFT | EXTERNAL_WRITE | BINDING` and required approvals

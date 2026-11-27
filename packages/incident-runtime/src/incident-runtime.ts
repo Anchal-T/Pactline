@@ -1,7 +1,7 @@
 // IncidentRuntime — Phase 2D (ingestEvent)
 // Four stateless ticks driven by injected Clock per AGENTS.md §4
 
-import type { NormalizedEvent } from "@pactline/domain";
+import { EventNormalizer, type NormalizedEvent } from "@pactline/domain";
 
 /**
  * Clock interface for time control
@@ -20,25 +20,43 @@ export class RealClock implements Clock {
   }
 }
 
+export type StoreOutcome = "stored" | "duplicate" | "out_of_order";
+
+export interface EventKeys {
+  /** Full source id, for exact redeliveries: "vendor-email:evt-001-v2". Null when the source gave no id. */
+  dedupeKey: string | null;
+  /** Shared by every revision of one source event: "vendor-email:evt-001". Null when the source gave no id. */
+  seriesKey: string | null;
+}
+
 /**
- * Event storage interface
- * Actual implementation in @pactline/db
+ * Event storage interface. Actual implementation in @pactline/db.
+ *
+ * The duplicate check, the version comparison and the write are one operation: two overlapping deliveries must
+ * not both be accepted, and an older revision must not land after a newer one. A database implementation does
+ * this in one transaction (a unique index on dedupeKey plus a lock on the series), not as separate calls.
  */
 export interface EventStore {
-  /**
-   * Check if an event with this deduplication key already exists
-   */
-  isDuplicate(deduplicationKey: string): Promise<boolean>;
+  storeIfNew(event: NormalizedEvent, keys: EventKeys): Promise<StoreOutcome>;
+}
 
-  /**
-   * Get the existing version for a source event
-   */
-  getExistingVersion(deduplicationKey: string): Promise<number | null>;
+/** In-process store. Atomic because nothing awaits between the check and the write. For tests and local runs. */
+export class MemoryEventStore implements EventStore {
+  readonly events: NormalizedEvent[] = [];
+  private readonly seen = new Set<string>();
+  private readonly latestVersion = new Map<string, number>();
 
-  /**
-   * Store a normalized event
-   */
-  store(event: NormalizedEvent): Promise<void>;
+  async storeIfNew(event: NormalizedEvent, { dedupeKey, seriesKey }: EventKeys): Promise<StoreOutcome> {
+    if (dedupeKey && this.seen.has(dedupeKey)) return "duplicate";
+    if (seriesKey && event.source_version !== null) {
+      const latest = this.latestVersion.get(seriesKey);
+      if (latest !== undefined && event.source_version <= latest) return "out_of_order";
+      this.latestVersion.set(seriesKey, event.source_version);
+    }
+    if (dedupeKey) this.seen.add(dedupeKey);
+    this.events.push(event);
+    return "stored";
+  }
 }
 
 /**
@@ -78,35 +96,12 @@ export class IncidentRuntime {
    */
   async ingestEvent(event: NormalizedEvent): Promise<IngestionResult> {
     try {
-      // Check for deduplication key
-      const dedupeKey = this.getDeduplicationKey(event);
-
-      if (dedupeKey) {
-        // Check if already processed
-        const isDupe = await this.eventStore.isDuplicate(dedupeKey);
-        if (isDupe) {
-          return {
-            success: true,
-            event_id: event.event_id,
-            duplicate: true,
-          };
-        }
-
-        // Check for out-of-order delivery
-        if (event.source_version !== null) {
-          const existingVersion = await this.eventStore.getExistingVersion(dedupeKey);
-          if (existingVersion !== null && event.source_version <= existingVersion) {
-            return {
-              success: true,
-              event_id: event.event_id,
-              out_of_order: true,
-            };
-          }
-        }
-      }
-
-      // Store the event
-      await this.eventStore.store(event);
+      const outcome = await this.eventStore.storeIfNew(event, {
+        dedupeKey: EventNormalizer.getDeduplicationKey(event),
+        seriesKey: EventNormalizer.getSeriesKey(event),
+      });
+      if (outcome === "duplicate") return { success: true, event_id: event.event_id, duplicate: true };
+      if (outcome === "out_of_order") return { success: true, event_id: event.event_id, out_of_order: true };
 
       // TODO Phase 3: Trigger incident rules based on event type
       // - VendorCommitmentChanged → update PO line forecast → recalculate impact → open/update incident
@@ -126,16 +121,6 @@ export class IncidentRuntime {
         error: err instanceof Error ? err.message : String(err),
       };
     }
-  }
-
-  /**
-   * Create deduplication key from event
-   */
-  private getDeduplicationKey(event: NormalizedEvent): string | null {
-    if (!event.source_event_id) {
-      return null;
-    }
-    return `${event.source}:${event.source_event_id}`;
   }
 
   /**

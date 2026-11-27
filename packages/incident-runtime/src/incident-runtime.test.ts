@@ -1,6 +1,6 @@
 // IncidentRuntime Tests — Phase 2D
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { IncidentRuntime, type Clock, type EventStore } from "./incident-runtime.js";
+import { IncidentRuntime, MemoryEventStore, type Clock, type EventStore } from "./incident-runtime.js";
 import type { NormalizedEvent } from "@pactline/domain";
 
 describe("IncidentRuntime", () => {
@@ -30,162 +30,79 @@ describe("IncidentRuntime", () => {
   });
 
   beforeEach(() => {
-    clock = {
-      now: () => new Date("2026-12-14T10:00:00Z"),
-    };
-
-    eventStore = {
-      isDuplicate: vi.fn().mockResolvedValue(false),
-      getExistingVersion: vi.fn().mockResolvedValue(null),
-      store: vi.fn().mockResolvedValue(undefined),
-    };
-
+    clock = { now: () => new Date("2026-12-14T10:00:00Z") };
+    eventStore = new MemoryEventStore();
     runtime = new IncidentRuntime(clock, eventStore);
   });
 
+  const stored = () => (eventStore as MemoryEventStore).events;
+  const ev = (id: string | null, version: number | null, source = "vendor-email") => createEvent({ source, source_event_id: id, source_version: version });
+
   describe("ingestEvent", () => {
-    it("should successfully ingest a new event", async () => {
+    it("stores a new event", async () => {
       const event = createEvent();
-
       const result = await runtime.ingestEvent(event);
-
-      expect(result.success).toBe(true);
-      expect(result.event_id).toBe(event.event_id);
-      expect(result.duplicate).toBeUndefined();
-      expect(result.out_of_order).toBeUndefined();
-      expect(eventStore.store).toHaveBeenCalledWith(event);
+      expect(result).toEqual({ success: true, event_id: event.event_id });
+      expect(stored()).toEqual([event]);
     });
 
-    it("should check for duplicates using deduplication key", async () => {
-      const event = createEvent({ source_event_id: "evt-001" });
-
-      await runtime.ingestEvent(event);
-
-      expect(eventStore.isDuplicate).toHaveBeenCalledWith("vendor-email:evt-001");
-    });
-
-    it("should reject duplicate events", async () => {
-      const event = createEvent({ source_event_id: "evt-001" });
-      vi.mocked(eventStore.isDuplicate).mockResolvedValue(true);
-
-      const result = await runtime.ingestEvent(event);
-
-      expect(result.success).toBe(true);
+    it("rejects an exact redelivery", async () => {
+      await runtime.ingestEvent(ev("evt-001", null));
+      const result = await runtime.ingestEvent(ev("evt-001", null));
       expect(result.duplicate).toBe(true);
-      expect(eventStore.store).not.toHaveBeenCalled();
+      expect(stored()).toHaveLength(1);
     });
 
-    it("should handle events without source_event_id (not deduplicatable)", async () => {
-      const event = createEvent({ source_event_id: null });
-
-      const result = await runtime.ingestEvent(event);
-
-      expect(result.success).toBe(true);
-      expect(eventStore.isDuplicate).not.toHaveBeenCalled();
-      expect(eventStore.store).toHaveBeenCalledWith(event);
+    it("does not deduplicate events without a source_event_id", async () => {
+      await runtime.ingestEvent(ev(null, null));
+      await runtime.ingestEvent(ev(null, null));
+      expect(stored()).toHaveLength(2);
     });
 
-    it("should check version for out-of-order detection", async () => {
-      const event = createEvent({
-        source_event_id: "evt-001-v2",
-        source_version: 2,
-      });
-
-      await runtime.ingestEvent(event);
-
-      expect(eventStore.getExistingVersion).toHaveBeenCalledWith("vendor-email:evt-001-v2");
-    });
-
-    it("should reject out-of-order event (lower version)", async () => {
-      const event = createEvent({
-        source_event_id: "evt-001-v1",
-        source_version: 1,
-      });
-      vi.mocked(eventStore.getExistingVersion).mockResolvedValue(2);
-
-      const result = await runtime.ingestEvent(event);
-
-      expect(result.success).toBe(true);
+    it("rejects an older revision after a newer one is stored", async () => {
+      await runtime.ingestEvent(ev("evt-001-v2", 2));
+      const result = await runtime.ingestEvent(ev("evt-001-v1", 1));
       expect(result.out_of_order).toBe(true);
-      expect(eventStore.store).not.toHaveBeenCalled();
+      expect(stored()).toHaveLength(1);
     });
 
-    it("should reject out-of-order event (same version)", async () => {
-      const event = createEvent({
-        source_event_id: "evt-001-v2",
-        source_version: 2,
-      });
-      vi.mocked(eventStore.getExistingVersion).mockResolvedValue(2);
-
-      const result = await runtime.ingestEvent(event);
-
-      expect(result.success).toBe(true);
-      expect(result.out_of_order).toBe(true);
-      expect(eventStore.store).not.toHaveBeenCalled();
+    it("rejects a different delivery of the same version", async () => {
+      await runtime.ingestEvent(ev("evt-001-v2", 2));
+      expect((await runtime.ingestEvent(ev("evt-001-v2", 2))).duplicate).toBe(true);
     });
 
-    it("should accept in-order event (higher version)", async () => {
-      const event = createEvent({
-        source_event_id: "evt-001-v3",
-        source_version: 3,
-      });
-      vi.mocked(eventStore.getExistingVersion).mockResolvedValue(2);
-
-      const result = await runtime.ingestEvent(event);
-
-      expect(result.success).toBe(true);
+    it("accepts a newer revision", async () => {
+      await runtime.ingestEvent(ev("evt-001-v2", 2));
+      const result = await runtime.ingestEvent(ev("evt-001-v3", 3));
       expect(result.out_of_order).toBeUndefined();
-      expect(eventStore.store).toHaveBeenCalledWith(event);
+      expect(stored()).toHaveLength(2);
     });
 
-    it("should handle events without version", async () => {
-      const event = createEvent({
-        source_event_id: "evt-001",
-        source_version: null,
-      });
-
-      const result = await runtime.ingestEvent(event);
-
-      expect(result.success).toBe(true);
-      expect(eventStore.getExistingVersion).not.toHaveBeenCalled();
-      expect(eventStore.store).toHaveBeenCalledWith(event);
+    it("keeps series separate per source and per event", async () => {
+      await runtime.ingestEvent(ev("evt-001-v2", 2, "vendor-email"));
+      expect((await runtime.ingestEvent(ev("evt-001-v1", 1, "vendor-portal"))).out_of_order).toBeUndefined();
+      expect((await runtime.ingestEvent(ev("evt-002-v1", 1, "vendor-email"))).out_of_order).toBeUndefined();
     });
 
-    it("should handle store errors gracefully", async () => {
-      const event = createEvent();
-      vi.mocked(eventStore.store).mockRejectedValue(new Error("DB error"));
+    it("accepts only one of many overlapping deliveries", async () => {
+      const results = await Promise.all(Array.from({ length: 5 }, () => runtime.ingestEvent(ev("evt-009", null))));
+      expect(results.filter((r) => !r.duplicate)).toHaveLength(1);
+      expect(stored()).toHaveLength(1);
+    });
 
-      const result = await runtime.ingestEvent(event);
+    it("never lets an older revision land after a newer one under overlap", async () => {
+      await Promise.all([runtime.ingestEvent(ev("evt-007-v1", 1)), runtime.ingestEvent(ev("evt-007-v2", 2))]);
+      expect(stored().map((e) => e.source_version)).toContain(2);
+      await runtime.ingestEvent(ev("evt-007-v1", 1));
+      expect(stored().filter((e) => e.source_version === 1).length).toBeLessThanOrEqual(1);
+    });
 
+    it("reports store errors without throwing", async () => {
+      eventStore = { storeIfNew: vi.fn().mockRejectedValue(new Error("DB error")) };
+      runtime = new IncidentRuntime(clock, eventStore);
+      const result = await runtime.ingestEvent(createEvent());
       expect(result.success).toBe(false);
       expect(result.error).toContain("DB error");
-    });
-  });
-
-  describe("Deduplication key generation", () => {
-    it("should handle different sources", async () => {
-      const event1 = createEvent({ source: "vendor-email", source_event_id: "evt-001" });
-      const event2 = createEvent({ source: "vendor-portal", source_event_id: "evt-001" });
-
-      await runtime.ingestEvent(event1);
-      await runtime.ingestEvent(event2);
-
-      expect(eventStore.isDuplicate).toHaveBeenCalledWith("vendor-email:evt-001");
-      expect(eventStore.isDuplicate).toHaveBeenCalledWith("vendor-portal:evt-001");
-    });
-
-    it("should treat same source+event_id as duplicate", async () => {
-      const event = createEvent({ source: "vendor-email", source_event_id: "evt-001" });
-
-      vi.mocked(eventStore.isDuplicate).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
-
-      const result1 = await runtime.ingestEvent(event);
-      const result2 = await runtime.ingestEvent(event);
-
-      expect(result1.success).toBe(true);
-      expect(result1.duplicate).toBeUndefined();
-      expect(result2.success).toBe(true);
-      expect(result2.duplicate).toBe(true);
     });
   });
 
