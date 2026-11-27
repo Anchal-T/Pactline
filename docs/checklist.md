@@ -44,11 +44,13 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 ## Phase 0: Shared Contract (do first — unblocks everyone)
 > **Owner:** 1 person | **Depends on:** nothing | **Est.:** 0.5 day | **Spec:** [docs/03 §3](03_Agent_Suite_Specification.md)
 
-- ⬜ 👤 ___________ **[M]** `packages/domain/src/contracts.ts`: Zod for `SpecialistResult<T>`, `SourceRef`, `Confidence`, `Finding`, `HumanHandoff`, `EntityRef`, `StatePin`, `Assertion`
-- ⬜ **[M]** Envelope validator: schema check, **no-invention rule** (identities must resolve to catalog/source), **verbatim-excerpt check**, stale-evidence tier cap, INSUFFICIENT_EVIDENCE filter
-- ⬜ **[M]** `idempotency_key = sha256(canonical inputs + specialist version)` helper + cached replay
-- ⬜ **[M]** Generate MCP `outputSchema` from the Zod types
-- ⬜ **[S]** Grounding validator for model-written prose (IDs, vendors, dates, amounts must match structured result; template fallback with `provenance`)
+- ✅ 👤 ___Abhishek________ **[M]** `packages/domain/src/contracts.ts`: Zod for `SpecialistResult<T>`, `SourceRef`, `Confidence`, `Finding`, `HumanHandoff`, `EntityRef`, `StatePin`, `Assertion` (+ `Locator`, `ModelUsage`). Cross-reference rules at schema level: unique `ref_id`s, every cited ref exists in `evidence`, `NEEDS_HUMAN` needs a handoff, no blocking handoff beside `OK`. Two additive extensions to docs/03: optional `SourceRef.expires_at` (quote validity) and `assertions[]` on the envelope (feeds the Conflict Detector, 2G).
+- ✅ **[M]** Envelope validator `validateEnvelope` / `parseAndValidate` (`validator.ts`), rules enforced in code: 1 no source no claim (verdict → UNKNOWN, forced `NEEDS_HUMAN` with a `MISSING_EVIDENCE` handoff), 2 **no invention** (entity must resolve, identity cannot rest on derived values → reject, status `ERROR`), 3 **verbatim excerpt** (whitespace-normalised; ref dropped and tier capped at POSSIBLE; unloadable source fails closed), 4 confidence and severity independent, 5 `INSUFFICIENT_EVIDENCE` → `ABSTAINED`, verdicts and suggestions withdrawn, `presentable: false` plus a `missingEvidence` list, 6 **stale cap** (email 7 days default, quote `expires_at`, per-kind overrides; never raises a tier). Pure function, does not mutate its input.
+- ✅ **[M]** `idempotencyKey({specialist, version, input})` = `sha256:` of `specialist@version` + canonical JSON (`canonicalJson`: sorted keys, NFC, rejects NaN/Date/function/bigint) and `createIdempotentRunner(cache)`: cached replay with empty `model_usage`, concurrent callers share one run, `ERROR` never cached, key/result mismatch refused, cache is clone-safe. Node-only, exported from `@pactline/domain/server` so the frontend bundle stays clean. `ResultCache` interface is ready for a Postgres-backed implementation in 2A.
+- ✅ **[M]** MCP schemas generated from the same Zod: `specialistOutputSchema(resultSchema)` (JSON Schema for `outputSchema`), `toolInputSchema`, and `specialistEnvelopeShape` for SDKs that take a raw shape. Test asserts it is an object schema with every envelope field, real enums and `additionalProperties: false`.
+- ✅ **[S]** Grounding validator `checkGrounding` / `groundedOrTemplate` (`grounding.ts`): identifiers, ISO dates, currency amounts, significant numbers (decimal, unit-bearing or 3+ digits) and vendor names in model prose must appear in the structured result, else the deterministic template is used and `provenance: "template"` is returned with the ungrounded tokens. `allow` list for standards such as ISO-9906.
+- ✅ **Tests:** 62 passing in `packages/domain` (`pnpm --filter @pactline/domain test`); all workspace packages still typecheck.
+- 🟡 **Known limits (carry into Phase 2/3):** the validator takes `sourceText` and `resolveEntity` as injected functions, so the real loaders (document store, catalog) land with 2A and 3B. Grounding is lexical: it cannot detect an invented vendor that is not in the supplied `vendors` list, and it flags legitimately derived numbers (a model-computed difference), so those should be computed in code and passed in the structured result.
 
 ---
 
@@ -222,7 +224,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 > **Design rule — [Unslop](https://github.com/heydamir/unslop):** every component passes an Unslop review before it is marked done. The dashboard must look like something a procurement manager would trust with real incident data. **Every animation must correspond to a real event in `audit_events`.**
 
 ### 4A — Project Setup & Layout
-- ✅ 👤 ___________ — Initialize frontend project (`apps/frontend`)
+- ✅ 👤 ___Abhishek________ — Initialize frontend project (`apps/frontend`)
 - ✅ Set up Next.js 15 App Router with React 19 and strict TypeScript
 - ✅ Install shadcn/ui + Tailwind CSS — Tailwind v4 with a custom token set; shadcn components are owned source in `src/components/ui/` (button, dialog, tabs, navigation-menu, breadcrumb, select, input, label, checkbox), not the default theme
 - ✅ Create app layout: sidebar navigation + main content area — `src/app/(app)/layout.tsx` wraps `AppShell`: fixed sidebar on desktop, slide-in drawer on mobile, sticky header with breadcrumbs and theme toggle, light and dark
