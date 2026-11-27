@@ -21,13 +21,21 @@ export interface GroundingResult {
   ungrounded: GroundingIssue[];
 }
 
-const ID_RE = /\b[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+\b/g;
+/** Uppercase codes (INC-0412), contract ids (pl:product_config:cand-a) and documented lowercase-prefixed ids (cfg-A, offer-A1). */
+const ID_RE = /\bpl:[a-z_]+:[A-Za-z0-9](?:[A-Za-z0-9._~-]*[A-Za-z0-9])?|\b[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+\b|\b(?:cfg|cand|offer|quote|po|pol|inc|act|req|rev|task|apr|sub|ven)-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*\b/g;
 const DATE_RE = /\b\d{4}-\d{2}-\d{2}\b/g;
-const AMOUNT_RE = /(?:₹|\$|€|£|Rs\.?\s?|INR\s?|USD\s?)\s?\d[\d,]*(?:\.\d+)?/g;
+const SIGN = "[-\\u2212\\u2013]";
+const CUR = "(?:₹|\\$|€|£|Rs\\.?\\s?|INR\\s?|USD\\s?)";
+const AMOUNT_RE = new RegExp(`(?:(?<!\\w)${SIGN}\\s?)?${CUR}\\s?(?:${SIGN}\\s?)?\\d[\\d,]*(?:\\.\\d+)?`, "g");
 const UNIT = "(?:days?|weeks?|hours?|h|m³\\/h|m3\\/h|kW|m|%)";
-const NUMBER_RE = new RegExp(`(?<![\\w.-])\\d[\\d,]*(?:\\.\\d+)?(?:\\s?${UNIT}(?![\\w]))?(?![\\w-])`, "g");
+const NUMBER_RE = new RegExp(`(?<![\\w.])(?:${SIGN})?\\d[\\d,]*(?:\\.\\d+)?(?:\\s?${UNIT}(?![\\w]))?(?![\\w-])`, "g");
+const FACT_NUMBER_RE = new RegExp(`(?<![\\w.,])(?:${SIGN})?\\d[\\d,]*(?:\\.\\d+)?`, "g");
 
-const toNumber = (s: string) => Number(s.replace(/[^\d.]/g, ""));
+/** Signed value: a minus before the digits makes it negative, so a saving is never read as a cost. */
+const toNumber = (s: string) => {
+  const n = Number(s.replace(/[^\d.]/g, ""));
+  return new RegExp(SIGN).test(s.slice(0, s.search(/\d/))) ? -n : n;
+};
 const isAllowed = (t: string, allow: GroundingOptions["allow"]) => (allow ?? []).some((a) => (typeof a === "string" ? a === t : a.test(t)));
 
 function strings(v: unknown, out: string[] = []): string[] {
@@ -46,7 +54,7 @@ function facts(structured: unknown) {
   for (const s of text) {
     for (const m of s.matchAll(ID_RE)) ids.add(m[0]);
     for (const m of s.matchAll(DATE_RE)) dates.add(m[0]);
-    for (const m of s.replace(DATE_RE, " ").matchAll(/\d[\d,]*(?:\.\d+)?/g)) nums.push(toNumber(m[0]));
+    for (const m of s.replace(DATE_RE, " ").matchAll(FACT_NUMBER_RE)) nums.push(toNumber(m[0]));
     if (/^\d{4}-\d{2}-\d{2}T/.test(s)) dates.add(s.slice(0, 10));
   }
   return { ids, dates, nums, haystack: text.join("\n").toLowerCase() };
@@ -69,8 +77,8 @@ export function checkGrounding(prose: string, structured: unknown, opts: Groundi
   for (const m of rest.matchAll(NUMBER_RE)) {
     const raw = m[0];
     const digits = raw.match(/\d[\d,]*(?:\.\d+)?/)![0];
-    const significant = digits.includes(".") || new RegExp(UNIT).test(raw.slice(digits.length)) || digits.replace(/[^\d]/g, "").length >= 3;
-    if (significant && !hasNum(toNumber(digits))) ungrounded.push({ kind: "number", text: raw.trim() });
+    const significant = digits.includes(".") || new RegExp(UNIT).test(raw.slice(raw.indexOf(digits) + digits.length)) || digits.replace(/[^\d]/g, "").length >= 3;
+    if (significant && !hasNum(toNumber(raw.slice(0, raw.indexOf(digits) + digits.length)))) ungrounded.push({ kind: "number", text: raw.trim() });
   }
 
   const lower = prose.toLowerCase();

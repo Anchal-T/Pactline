@@ -90,3 +90,49 @@ describe("createIdempotentRunner", () => {
     expect((await run(key, async () => make())).envelope.result.summary).toBe("Candidate A meets head at duty");
   });
 });
+
+describe("review fixes", () => {
+  const key = idempotencyKey({ specialist: "spec_compliance", version: "1.0.0", input });
+  const make = () => envelope({ idempotency_key: key });
+
+  it("never runs twice when an async cache serves overlapping reads", async () => {
+    const store = new Map<string, ReturnType<typeof make>>();
+    let reads = 0;
+    const slowCache = {
+      async get(k: string) {
+        const n = ++reads;
+        await new Promise((r) => setTimeout(r, n === 1 ? 5 : 40));
+        return store.get(k);
+      },
+      async set(k: string, v: ReturnType<typeof make>) {
+        store.set(k, v);
+      },
+    };
+    const run = createIdempotentRunner(slowCache);
+    let calls = 0;
+    const produce = async () => (calls++, make());
+    await Promise.all([run(key, produce), new Promise((r) => setTimeout(r, 1)).then(() => run(key, produce))]);
+    expect(calls).toBe(1);
+  });
+  it("gives concurrent callers independent copies", async () => {
+    const run = createIdempotentRunner(new MemoryResultCache());
+    const produce = async () => {
+      await new Promise((r) => setTimeout(r, 10));
+      return make();
+    };
+    const [a, b] = await Promise.all([run(key, produce), run(key, produce)]);
+    a.envelope.result.summary = "tampered";
+    a.envelope.findings.length = 0;
+    expect(b.envelope.result.summary).toBe("Candidate A meets head at duty");
+    expect(b.envelope.findings).toHaveLength(1);
+  });
+  it("rejects sparse arrays so they cannot collide with real ones", () => {
+    expect(() => canonicalJson(new Array(1))).toThrow(/empty array slot/);
+    expect(() => canonicalJson([1, , 3])).toThrow(/empty array slot/);
+    expect(canonicalJson([])).toBe("[]");
+  });
+  it("normalises keys before sorting and rejects keys that collide", () => {
+    expect(canonicalJson({ "e\u0301": 1, z: 2 })).toBe(canonicalJson({ "\u00e9": 1, z: 2 }));
+    expect(() => canonicalJson({ "e\u0301": 1, "\u00e9": 2 })).toThrow(/duplicate key/);
+  });
+});

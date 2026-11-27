@@ -70,3 +70,26 @@ describe("grounding validator", () => {
     expect(groundedOrTemplate({ prose: "INC-0412 is late.", structured, template: "t" }).provenance).toBe("model");
   });
 });
+
+describe("grounding: ids and signs", () => {
+  it("catches invented contract and lowercase ids", () => {
+    const s = { cfg: "cfg-A", offer: "offer-A1", subject: "pl:product_config:cand-a" };
+    expect(checkGrounding("Use cfg-A with offer-A1 for pl:product_config:cand-a.", s).ok).toBe(true);
+    for (const bad of ["pl:product_config:made-up", "cfg-Z", "offer-B9"]) {
+      const r = checkGrounding(`Choose ${bad} now.`, s);
+      expect(r.ok).toBe(false);
+      expect(r.ungrounded[0]?.kind).toBe("identifier");
+    }
+  });
+  it("does not let a reversed cost pass", () => {
+    expect(checkGrounding("Cost change: $4,800.", { cost_delta: 4800 }).ok).toBe(true);
+    expect(checkGrounding("Cost change: -$4,800.", { cost_delta: 4800 }).ok).toBe(false);
+    expect(checkGrounding("Cost change: $-4,800.", { cost_delta: 4800 }).ok).toBe(false);
+    expect(checkGrounding("Cost change: -$4,800.", { cost_delta: -4800 }).ok).toBe(true);
+    expect(checkGrounding("Cost change: $4,800.", { cost_delta: -4800 }).ok).toBe(false);
+  });
+  it("keeps signs on plain numbers", () => {
+    expect(checkGrounding("Float is -4.5 days.", { float_days: -4.5 }).ok).toBe(true);
+    expect(checkGrounding("Float is 4.5 days.", { float_days: -4.5 }).ok).toBe(false);
+  });
+});

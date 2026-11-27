@@ -44,17 +44,17 @@ export interface Replayable<T> {
 export function createIdempotentRunner(cache: ResultCache) {
   const inflight = new Map<string, Promise<Replayable<unknown>>>();
 
+  /** Every caller gets its own copy: nobody can mutate another caller's answer or the cache. */
+  const replay = <T>(e: SpecialistResult<unknown>): Replayable<T> => ({ envelope: { ...structuredClone(e), model_usage: [] } as SpecialistResult<T>, replayed: true });
+
   return async function run<T>(key: string, produce: () => Promise<SpecialistResult<T>>): Promise<Replayable<T>> {
-    const hit = await cache.get(key);
-    if (hit) return { envelope: { ...hit, model_usage: [] } as SpecialistResult<T>, replayed: true };
-
     const pending = inflight.get(key);
-    if (pending) {
-      const shared = await pending;
-      return { envelope: { ...shared.envelope, model_usage: [] } as SpecialistResult<T>, replayed: true };
-    }
+    if (pending) return replay<T>((await pending).envelope as SpecialistResult<unknown>);
 
+    /* The shared promise is registered before the cache lookup, so overlapping callers never both see a miss. */
     const started = (async (): Promise<Replayable<unknown>> => {
+      const hit = await cache.get(key);
+      if (hit) return { envelope: hit, replayed: true };
       const envelope = await produce();
       if (envelope.idempotency_key !== key) throw new Error(`idempotency_key mismatch: result carries ${envelope.idempotency_key}, run was keyed ${key}`);
       if (envelope.status !== "ERROR") await cache.set(key, envelope as SpecialistResult);
@@ -62,7 +62,8 @@ export function createIdempotentRunner(cache: ResultCache) {
     })();
     inflight.set(key, started);
     try {
-      return (await started) as Replayable<T>;
+      const r = await started;
+      return r.replayed ? replay<T>(r.envelope as SpecialistResult<unknown>) : (r as Replayable<T>);
     } finally {
       inflight.delete(key);
     }

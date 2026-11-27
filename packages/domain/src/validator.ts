@@ -19,6 +19,12 @@ export interface ValidationContext {
   sourceText(ref: SourceRef): string | undefined;
   /** True when the identity exists in a seeded catalog, a fetched public source or a project document. */
   resolveEntity(ref: EntityRef): boolean;
+  /**
+   * Entities a specialist names inside its own `result` (for example discovery candidates), with the evidence that
+   * supports each. The validator cannot read a specialist's result shape, so the specialist supplies this.
+   * Each claim is held to the same rules as a finding subject: it must resolve, and it must cite a verified source.
+   */
+  resultClaims?(result: unknown): Array<{ subject: EntityRef; refs: string[]; path?: string }>;
   /** Per-kind freshness windows in days, merged over the defaults. */
   freshnessDays?: Partial<Record<SourceKind, number>>;
   /** Role asked to resolve a missing-evidence handoff that the validator has to create. */
@@ -107,6 +113,7 @@ export function validateEnvelope<T>(input: SpecialistResult<T>, ctx: ValidationC
   const subjects: Array<{ ref: EntityRef; refs: string[]; path: string }> = [
     ...env.findings.map((f, i) => ({ ref: f.subject, refs: f.evidence, path: `findings.${i}.subject` })),
     ...env.assertions.flatMap((a, i) => (a.subject ? [{ ref: a.subject, refs: a.refs, path: `assertions.${i}.subject` }] : [])),
+    ...(ctx.resultClaims?.(env.result) ?? []).map((c, i) => ({ ref: c.subject, refs: c.refs.filter((id) => !dropped.has(id)), path: c.path ?? `result.claims.${i}` })),
   ];
   for (const s of subjects) {
     if (!ctx.resolveEntity(s.ref)) issues.push({ code: "ENTITY_UNRESOLVED", severity: "reject", message: `${s.ref.id} does not resolve to a catalog record, public source or project document`, path: s.path });
@@ -124,6 +131,14 @@ export function validateEnvelope<T>(input: SpecialistResult<T>, ctx: ValidationC
       if (f.verdict && f.verdict !== "NOT_APPLICABLE") f.verdict = "UNKNOWN";
     }
   });
+  for (const c of ctx.resultClaims?.(env.result) ?? []) {
+    const live = c.refs.filter((id) => byId.has(id));
+    if (live.length === 0) {
+      downgraded = true;
+      issues.push({ code: "FINDING_WITHOUT_EVIDENCE", severity: "downgrade", message: `${c.subject.id} is named in the result without a verified source`, path: c.path });
+      missing.push(`Source for ${c.subject.id}`);
+    }
+  }
   if ((env.status === "OK" || env.status === "PARTIAL") && env.evidence.length === 0) {
     downgraded = true;
     issues.push({ code: "NO_EVIDENCE", severity: "downgrade", message: "the result cites no evidence at all" });

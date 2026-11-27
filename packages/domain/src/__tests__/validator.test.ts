@@ -154,3 +154,26 @@ describe("parseAndValidate", () => {
     if (r.ok) expect(r.validated.presentable).toBe(true);
   });
 });
+
+describe("entities named inside result", () => {
+  const claims = (result: unknown) => [{ subject: { type: "product_config" as const, id: "pl:product_config:made-up" }, refs: ["r1"], path: "result.candidates.0" }, ...(result ? [] : [])];
+  it("rejects an invented candidate even when findings and assertions are empty", () => {
+    const v = validateEnvelope(envelope({ findings: [] }), context({ resultClaims: claims, resolveEntity: (e) => e.id !== "pl:product_config:made-up" }));
+    expect(v.ok).toBe(false);
+    expect(v.envelope.status).toBe("ERROR");
+    expect(v.issues.find((i) => i.code === "ENTITY_UNRESOLVED")?.path).toBe("result.candidates.0");
+  });
+  it("downgrades a resolved candidate that cites no verified source", () => {
+    const v = validateEnvelope(envelope({ findings: [] }), context({ resultClaims: () => [{ subject: { type: "product_config", id: "pl:product_config:cand-a" }, refs: [] }] }));
+    expect(v.issues.map((i) => i.code)).toContain("FINDING_WITHOUT_EVIDENCE");
+    expect(v.envelope.status).toBe("NEEDS_HUMAN");
+  });
+  it("treats a claim whose only source was dropped as unsourced", () => {
+    const v = validateEnvelope(envelope({ evidence: [ref({ excerpt: "invented" })] }), context({ resultClaims: () => [{ subject: { type: "product_config", id: "pl:product_config:cand-a" }, refs: ["r1"] }] }));
+    expect(v.issues.map((i) => i.code)).toContain("FINDING_WITHOUT_EVIDENCE");
+  });
+  it("accepts a resolved, sourced candidate", () => {
+    const v = validateEnvelope(envelope(), context({ resultClaims: () => [{ subject: { type: "product_config", id: "pl:product_config:cand-a" }, refs: ["r1"] }] }));
+    expect(v.issues).toEqual([]);
+  });
+});
