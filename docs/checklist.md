@@ -10,7 +10,7 @@
 
 ## How to use this checklist
 
-Each phase is **self-contained enough for a separate person/pair to pick up**. Dependencies are marked. Every item is tagged by tier:
+Each phase is **self-contained enough for a separate person/pair to pick up**. Dependencies are marked. Start full dashboard views (4B–4H) after the deterministic kernel and all 12 required scenarios pass (Phase 3G), or scaffold against mocks first. The [runtime architecture](https://app.notion.com/p/42358d57c29881aab441d6b9870af6a2) and [AGENTS.md](../AGENTS.md) define the agreed stack and verification gate. Every item is tagged by tier:
 
 - **[M] Must** — required for a credible Round 1 submission. Do these first.
 - **[S] Should** — strong differentiators; start only when the Musts in your lane are green.
@@ -22,7 +22,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 
 **Legend:**
 - ⬜ = Not started
-- 🟡 = In progress / scaffold only
+- 🟡 = In progress, including scaffolds and drafts
 - ✅ = Done
 - 🔴 = Blocked (note blocker)
 - 👤 = Assignee field — write your name
@@ -54,32 +54,44 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 
 ## Phase 1: Data & Domain Foundation
 > **Owner:** 1 person | **No dependencies** | **Est.:** 2 days | **Spec:** [docs/07](07_Canonical_Demo_Dataset.md)
+> **What this delivers:** Sandbox project and procurement fixtures paired with authentic public mechanical specifications and manufacturer pump data.
 
 ### 1A — Project Schedule Data
-- ⬜ 👤 ___________ **[M]** Fill `project-schedule.json` with the 14 activities in docs/07 §2 (IDs fixed)
-- ⬜ **[M]** Baseline `sched-rev-001` (immutable) + current `sched-rev-003`
-- ⬜ **[M]** Calendar (Mon–Fri, holidays 2026-12-25, 2027-01-26)
-- ⬜ **[M]** Critical path through A-140 → M-200; float path via A-170/A-180 (scenario 1)
+- ✅ Create the synthetic baseline (`sched-rev-001`) with 12 activities and 12 finish-to-start dependencies. [Schedule fixture](../data/fixtures/project-schedule.json)
+- ✅ Define activity types for design, procurement, fabrication, delivery, inspection, installation, and commissioning.
+- ✅ Set workday durations, planned dates, and predecessor/successor relationships.
+- ✅ Include a critical path through pump installation and 13 workdays of float for site preparation.
+- ✅ Define the workweek, holiday exclusions, and the site-preparation start constraint.
+- ⬜ **[M]** Align/expand to 14 activities + `sched-rev-003` if needed by docs/07 §2 and tune durations to match docs/05, then freeze
 - ⬜ **[S]** PERT ranges per activity for Monte Carlo (defaults documented)
-- ⬜ **[M]** Tune durations once so engine output matches docs/05, then freeze
 
 ### 1B — Equipment & Procurement Data
-- ⬜ 👤 ___________ **[M]** 4 packages, 5 PO lines, 5 fictional SANDBOX vendors (docs/07 §3)
-- ⬜ **[M]** MaterialNeed records (package ↔ activity, readiness buffer)
-- ⬜ **[M]** Baseline VendorCommitment history (append-only)
+- ✅ Create three sandbox packages for chilled-water pumps, anchor kits, and piping connection kits. [Procurement fixture](../data/fixtures/equipment-packages.json)
+- ✅ Link each package to a schedule activity through a `MaterialNeed` with a quantity, required usable date, and readiness buffer.
+- ✅ Add PO lines with fictional suppliers, quantities, release dates, and contractual arrivals.
+- ✅ Add an active allocation for each material need within the linked PO line quantity.
+- ✅ Add planned fabrication, test, dispatch, and delivery milestones.
+- ✅ Record an initial vendor acknowledgment for each PO line.
 - ⬜ **[S]** Vendor promise-vs-actual history (≥3 past deliveries per vendor) for S5 slip ratio
 
-### 1C — Requirements & Authentic Product Data
-- ⬜ 👤 ___________ **[M]** Version `pump-spec.md` → `reqset-pump-r2` (R-01…R-09) + `reqset-pump-r3` (scenario 6)
-- ⬜ **[M]** Collect 2–3 manufacturers × 3–5 configs of 50 Hz end-suction pumps around 100 m³/h @ 35 m from **public datasheets** (URL, page, retrieval date, SHA-256)
-- ⬜ **[M]** Required coverage: `cfg-A` passes, `cfg-B` fails head at duty, `cfg-C` lacks motor evidence; +2 configs reserved for held-out
-- ⬜ **[M]** Digitize curves (H-Q, η, NPSHr, P2) manually as ground truth; record RMS
-- ⬜ **[M]** `data/SOURCES.md` provenance & licence log
-- ⬜ **[M]** Verify ISO 9906 grade tolerance values and operating-region rule from the standard before encoding (research found conflicting secondary sources)
+### 1C — Technical Specifications & Requirements & Authentic Product Data
+- ✅ Create the 60 Hz technical reference dataset from the NPS CHWP-1 schedule and project specifications (`reqset-pump-r2`). [Pump reference fixture](../data/specs/pump-reference.json)
+- ✅ Record typed duty-point, equipment, motor, and insulation criteria with applicability, evidence needs, and tolerance assumptions. Site NPSH, physical fit, materials, and pressure limits are recorded as open criteria.
+- ✅ Digitize the Bell & Gossett e-1510 and Taco FI curves for the selected impellers, speeds, and water basis. Store sampled head, efficiency, and NPSHr with source locators and estimated reading error.
+- ✅ Check that the fixture supports a head pass, a head failure, and an unknown motor finding.
+- ✅ Retain the superseded 50 Hz values for context. [Historical draft](../data/specs/pump-spec.md)
+- ⬜ **[M]** Add `reqset-pump-r3` revision for approval-invalidation scenario (scenario 6) + 2 held-out configs
+- ⬜ **[M]** `data/SOURCES.md` provenance & licence log (URL, page, retrieval date, SHA-256)
+- ⬜ **[M]** Verify ISO 9906 grade tolerance values and operating-region rule from the standard before encoding
 
 ### 1D — Demo Event Sequence & Documents
-- ⬜ 👤 ___________ **[M]** Events 01–11 per docs/07 §7 (slip, silence, offers, approvals, shipment, inspection, second delay, injection, float-absorbed, out-of-order)
-- ⬜ **[M]** Offers incl. one expired variant (scenario 5)
+- 🟡 👤 ___________ — Script the sandbox demo incident sequence (Events 01–11 per docs/07 §7).
+- ✅ Add the first vendor delay fixture. The December 14 notice follows PO release and acknowledgment. The January 7 forecast arrival shifts earliest installation from December 30 to January 11. [Delay event](../data/fixtures/demo-events/01-vendor-delay.json)
+- ⬜ **[M]** Event 2: Vendor silence on follow-up (stale update)
+- ⬜ **[M]** Event 3: Alternative product offers received (candidate A passes, B fails head, C missing motor data, plus expired offer variant). Obtain a selected motor submittal and resolve open site criteria before labeling a candidate as a full pass.
+- ⬜ **[M]** Event 4–5: Technical approval granted for candidate A; Commercial approval granted
+- ⬜ **[M]** Event 6–7: Shipment, receipt, and inspection result
+- ⬜ **[M]** Event 8–11: Second delay → incident reopens; float-absorbed delay; out-of-order event
 - ⬜ **[M]** Injection fixtures: vendor email with hidden instruction + PDF with white-on-white text (~15 variants for eval)
 - ⬜ **[S]** Synthetic nameplate photos (match + IE2/IE3 mismatch), SANDBOX watermark
 - ⬜ **[S]** 3 quote PDFs with differing exclusions for S8
@@ -95,11 +107,12 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 > **Owner:** 1–2 people | **Parallel with Phase 1** | **Est.:** 3 days
 
 ### 2A — World State Store (Neon Postgres + Drizzle)
-- ⬜ 👤 ___________ **[M]** Schema for plan-doc §15 entities **plus** `facts` (bi-temporal: `valid_from/valid_to/recorded_at/source_event_id`), `entity_links`, `plans`, `plan_steps`, `specialist_tasks`, `audit_events`, `calibration`, `prequal_scorecards`
+- 🟡 👤 ___________ **[M]** Set up Neon PostgreSQL and Drizzle migrations (database client and migration configuration scaffolded). [Database package](../packages/db/package.json)
+- ⬜ **[M]** Schema for plan-doc §15 entities **plus** `facts` (bi-temporal: `valid_from/valid_to/recorded_at/source_event_id`), `entity_links`, `plans`, `plan_steps`, `specialist_tasks`, `audit_events`, `calibration`, `prequal_scorecards`
 - ⬜ **[M]** Append-only commitment history; versioned records
 - ⬜ **[M]** DB constraints for invariants 1, 3, 5, 7, 8 (allocation sum, offer evidence/expiry NOT NULL, closure, baseline immutability, open-incident CHECK)
 - ⬜ **[M]** Seed loader from Phase 1 fixtures
-- ⬜ **[M]** Read projections for API/UI
+- ⬜ **[M]** Read projections and CRUD/query functions for API/UI
 
 ### 2B — Schedule Engine
 - ✅ 👤 ___________ Deterministic CPM/float calculator — `packages/schedule-engine`
@@ -116,15 +129,17 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ⬜ **[S]** **Keploy:** record `POST /api/events/ingest` during demo replay → `apps/api/keploy/`
 
 ### 2C — Incident State Machine
-- ⬜ 👤 ___________ **[M]** States & transitions per [docs/04 §3](04_System_Workflows.md)
-- ⬜ **[M]** Invariants: no closure without verified acceptance; reopen from MITIGATED; owner + next action/blocker + review deadline
+- 🟡 👤 ___________ **[M]** Implement incident lifecycle manager using the existing states, including `CLOSED` per [docs/04 §3](04_System_Workflows.md). [Domain entities](../packages/domain/src/entities.ts)
+- ⬜ **[M]** Define valid transitions with preconditions
+- ⬜ **[M]** Enforce invariants: require verified accepted quantity or valid waiver with schedule disposition before closure; no duplicate procurement allocation; reopen from `MITIGATED` on new evidence; owner + next action/blocker + review deadline on every open incident
 - ⬜ **[M]** Optimistic version checks; transition audit log
 - ⬜ **[M]** Unit tests for valid/invalid transitions
 
 ### 2D — Event Ingress & Normalization
-- ⬜ 👤 ___________ **[M]** Envelope schema (exists in `domain/events.ts`) + `POST /api/events/ingest`
-- ⬜ **[M]** Dedupe by `source_event_id`; out-of-order by `source_version`/effective date
-- ⬜ **[M]** Propagation: commitment → PO line forecast → need → impact → incident trigger
+- 🟡 👤 ___________ **[M]** Align the event envelope and fixture IDs (UUIDs vs `evt-001` in delay fixture). [Event schema](../packages/domain/src/events.ts)
+- 🟡 **[M]** Wire `POST /api/events/ingest` to validate the envelope and call `IncidentRuntime.ingestEvent()`. [Event route](../apps/api/src/routes/events.ts)
+- ⬜ **[M]** Dedupe by `(source, source_event_id)`; out-of-order handling by `source_version`/effective date
+- ⬜ **[M]** Propagation: record `VendorCommitmentChanged` in append-only history → PO line forecast → need → impact → incident trigger
 - ⬜ **[M]** **Taint marking** on untrusted fields; deterministic cross-checks promote to `verified`
 
 ### 2E — Policy & Execution Gateway
@@ -157,7 +172,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 > **Owner:** 1–2 people | **Depends on:** Phase 0, 2A, 2D (skeletons can start now) | **Est.:** 4 days | **Spec:** [docs/03 §4](03_Agent_Suite_Specification.md)
 
 ### 3A — Agent Framework Setup
-- ⬜ 👤 ___________ **[M]** LangChain `ChatOpenAI` via OpenAI-compatible gateway; role tiers `extraction | vision | operator`
+- 🟡 👤 ___________ **[M]** Stateless, read-only LangChain `ChatOpenAI` workers (`AgentWorkers`, `OperatorDecider`) via Cloudflare AI Gateway or OpenAI-compatible endpoint; role tiers `extraction | vision | operator`; Neon owns durable execution state. [Agent workers package](../packages/agent-workers/package.json) · [Environment example](../.env.example)
 - ⬜ **[M]** Delegation contract (task_id, incident_id, role, objective, StatePin, evidence refs, budget, deadline, output schema)
 - ⬜ **[M]** `tickTasks` with `FOR UPDATE SKIP LOCKED`; stale-pin results kept for audit, not executed
 - ⬜ **[M]** Bounded delegation (max depth, parallelism, timeout → escalate)
@@ -193,22 +208,28 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ⬜ **[S]** Disagreement handling: conflict card + citation-only verifier call
 - ⬜ **[S]** Generic job planner `pactline_run_job` over the tool registry (side-effect classes enforced by gateway)
 
+### 3G — Pre-UI Verification
+- 🟡 Implement the 12 required scenarios. The harness currently enumerates them. [Scenario scaffold](../packages/eval-harness/src/scenarios/index.ts)
+- ⬜ Pass all 12 scenarios against an isolated Neon branch using `VirtualClock` and a fault-injecting `SandboxExternalAdapter`. [Verification targets](../AGENTS.md#6-verification-target-12-mandatory-scenarios)
+
 ---
 
 ## Phase 4: Frontend — Operator Dashboard
-> **Owner:** 1–2 people | **Depends on:** API endpoints (mock data until then) | **Est.:** 3–4 days
+> **Owner:** 1–2 people | **Depends on:** API endpoints (mock data until Phase 3G passes) | **Est.:** 3–4 days
+> **Gate:** Full 4B–4H views land after the deterministic kernel and all 12 required scenarios pass (Phase 3G).
+> **What this delivers:** The visual dashboard for demo and human-in-the-loop interaction.
 >
 > **Design rule — [Unslop](https://github.com/heydamir/unslop):** every component passes an Unslop review before it is marked done. The dashboard must look like something a procurement manager would trust with real incident data. **Every animation must correspond to a real event in `audit_events`.**
 
 ### 4A — Project Setup & Layout
 - ✅ 👤 ___________ — Initialize frontend project (`apps/frontend`)
-- ✅ Set up Next.js / React + Vite project — Next.js 15 App Router, React 19, TypeScript strict
+- ✅ Set up Next.js 15 App Router with React 19 and strict TypeScript
 - ✅ Install shadcn/ui + Tailwind CSS — Tailwind v4 with a custom token set; shadcn components are owned source in `src/components/ui/` (button, dialog, tabs, navigation-menu, breadcrumb, select, input, label, checkbox), not the default theme
 - ✅ Create app layout: sidebar navigation + main content area — `src/app/(app)/layout.tsx` wraps `AppShell`: fixed sidebar on desktop, slide-in drawer on mobile, sticky header with breadcrumbs and theme toggle, light and dark
 - ✅ Define routes: Dashboard, Incident Detail, Schedule, Compliance, Approvals, Agent Log — `/dashboard`, `/incidents/[id]`, `/schedule`, `/compliance`, `/approvals`, `/agent-log`; route metadata lives in `src/lib/nav.ts`
 - ✅ Set up API client (axios / fetch wrapper) pointing to backend — `src/lib/api.ts` (typed `api`, `apiGet`, `apiPost`, `ApiError`, timeout, optional Zod response validation); base URL from `NEXT_PUBLIC_API_URL` (default `http://localhost:3001`); `apps/api` now allows the web origin via CORS (`WEB_ORIGIN`); sidebar shows live `/health` status
 - ✅ **Unslop check:** layout, typography, color palette, sidebar — own palette and type (Cormorant Garamond, Instrument Sans, IBM Plex Mono), no default shadcn theme, no emoji, no placeholder copy. Screens show an honest empty state naming the endpoint they will read, not invented records. Checked in light, dark and at 390px.
-- 🟡 Note for 4B-4K: each screen body is currently the shared `Pending` state from `src/components/app/screen.tsx`; replace it with the real view as each section is built.
+- 🟡 Note for 4B–4K: each screen body is currently the shared `Pending` state from `src/components/app/screen.tsx`; replace it with the real view as each section is built (full 4B–4H views after Phase 3G passes).
 
 ### 4B — Incident Dashboard (Main View)
 - ⬜ 👤 ___________ **[M]** `GET /api/incidents`: severity, status, package, countdown to need date, **P(on-time)**, confidence tier
@@ -270,7 +291,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 > **Owner:** 1–2 people | **Depends on:** Phases 2–4 (partial) | **Est.:** 2–3 days
 
 ### 5A — MCP Server
-- ⬜ 👤 ___________ **[M]** `@modelcontextprotocol/sdk` in `apps/mcp`; streamable HTTP + stdio
+- 🟡 👤 ___________ **[M]** Configure `@modelcontextprotocol/sdk` in `apps/mcp` (stdio entry point exists, tool registration pending; add streamable HTTP). [MCP server](../apps/mcp/src/index.ts)
 - ⬜ **[M]** Specialist tools: `pactline_assess_delivery_risk`, `pactline_investigate`, `pactline_check_submittal`, `pactline_find_equivalents`, `pactline_forecast_lead_time`, `pactline_plan_recovery` (+ `pactline_prequalify_vendor`, `pactline_level_quotes`, `pactline_verify_receipt` when built)
 - ⬜ **[M]** Operator tools: `pactline_get_incident`, `pactline_explain_decision`, `pactline_submit_approval`, `pactline_ingest_event`
 - ⬜ **[M]** Every tool declares `outputSchema`, returns `structuredContent` + short text + `resource_link`s to evidence
@@ -279,7 +300,7 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ⬜ **[S]** Long-running `pactline_ingest_document` as MCP task backed by DB rows; elicitation for approvals **if** Amber's client supports it, else `NEEDS_HUMAN` + polling
 - ⬜ **[S]** `pactline_run_job` generic planner tool
 - ⬜ **[M]** Test with an MCP client (Inspector / Claude Desktop) — "Amber-callable" proof for video
-- ⬜ **[S]** **Keploy:** record MCP calls during E2E replay → `apps/mcp/keploy/`
+- ⬜ **[S]** **[Keploy](https://github.com/keploy/keploy):** record MCP calls during E2E replay → `apps/mcp/keploy/`
 
 ### 5B — End-to-End Pipeline Wiring
 - ⬜ 👤 ___________ **[M]** Seed → ingress → world state → incident → operator → specialists → plan → approval → outbox → verification → closure
@@ -287,12 +308,12 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ⬜ **[M]** Reopen on second delay; approval invalidation on offer/spec revision
 
 ### 5C — Demo Mode & Replay
-- ⬜ 👤 ___________ **[M]** `scripts/run-demo.ts` injects events with `VirtualClock` (days in seconds)
+- 🟡 👤 ___________ **[M]** Connect ordered fixture replay to `IncidentRuntime.ingestEvent()` with `VirtualClock` (days in seconds). [Replay script](../scripts/run-demo.ts)
 - ⬜ **[M]** Reset to clean state; all synthetic data labelled in UI
 - ⬜ **[S]** Guided annotations per phase; kill-worker button for the crash beat
 
 ### 5D — Packaging & Deployment
-- ⬜ 👤 ___________ **[M]** `docker compose up`: Postgres (local) or Neon URL, api, worker, mcp, frontend, doc-parser sidecar
+- ⬜ 👤 ___________ **[M]** `docker compose up`: Node 24 TypeScript backend + workers, Next.js frontend, Neon (`DATABASE_URL`) or local Postgres, MCP, doc-parser sidecar
 - ⬜ **[M]** `.env.example` (gateway URL, API key, model IDs per role)
 - ⬜ **[M]** `pactline check <spec> <submittal>` CLI for unseen inputs
 - ⬜ **[X]** `--profile offline`: Ollama with Qwen3-class text + Qwen-VL-class vision, cached public-data snapshots; cloud-vs-local accuracy/latency table
@@ -355,9 +376,11 @@ flowchart LR
   P1 --> P3
   P1 --> P6["Phase 6<br/>Evaluation"]
   P2 --> P3
+  P3 --> P3G["3G Gate<br/>12 scenarios"]
+  P3G --> P4["Phase 4<br/>Frontend"]
   P2 --> P5["Phase 5<br/>MCP + E2E"]
   P3 --> P5
-  P4["Phase 4<br/>Frontend (mock first)"] --> P5
+  P4 --> P5
   P5 --> P6
   P6 --> P7["Phase 7<br/>Submission"]
   P5 --> P7
@@ -367,10 +390,10 @@ flowchart LR
 
 | Day | Person A (Kernel) | Person B (Agents) | Person C (Frontend) | Person D (Data / Eval / Deliverables) |
 | --- | --- | --- | --- | --- |
-| Nov 27–28 | Phase 0 contract; 2A schema + seed | 3A framework; 3B layout parse | 4B dashboard on mocks | 1A/1B fixtures; start 1C datasheet collection; send 7E questions |
-| Nov 29–30 | 2C incident SM; 2D ingress + taint | S1 (MC on CPM), S2 | 4C timeline; 4E matrix + evidence viewer | 1C curves digitized; 1D events + injection docs |
+| Nov 27–28 | Phase 0 contract; 2A schema + seed | 3A framework; 3B layout parse | 4B dashboard on mocks | 1A/1B fixtures (done); 1C/1D remaining; send 7E questions |
+| Nov 29–30 | 2C incident SM; 2D ingress + taint | S1 (MC on CPM), S2 | 4C timeline; 4E matrix + evidence viewer | 1C revisions + `SOURCES.md`; 1D events + injection docs |
 | Dec 1–2 | 2E gateway + outbox + reconcile; 2F pump evaluator | S3 compliance, S4 equivalents | 4D schedule; 4F recovery | 1E eval sets; Phase 6 harness skeleton |
-| Dec 3 | 2B Monte Carlo counterfactuals; 2G conflict detector | S5 lead time, S6 recovery; 3D operator | 4G approvals; 4H agent log | **Freeze held-out**; scenarios 1–12 |
+| Dec 3 | 2B Monte Carlo counterfactuals; 2G conflict detector | S5 lead time, S6 recovery; 3D operator; **3G gate** | 4G approvals; 4H agent log | **Freeze held-out**; scenarios 1–12 |
 | Dec 4 | 5A MCP server | S7 / S9 (should) | 5C demo mode | scorecard + plots; deck draft |
 | Dec 5 | 5B E2E trace + bug fixes | bug fixes; grounding validator | Unslop polish; 4J scorecard | record video; README |
 | Dec 6 | 5D compose + CLI; tag `v1-round1` | final eval run | final polish | **submit by 23:45 IST** |

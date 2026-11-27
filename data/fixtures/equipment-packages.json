@@ -1,5 +1,6 @@
 {
-  "_note": "SYNTHETIC DATA — not real project records",
+  "_note": "SYNTHETIC SANDBOX DATA — packages, orders, suppliers, and acknowledgments are fictional. Readiness buffers use calendar days.",
+  "project_id": "proj-hvac-demo-001",
   "packages": [
     {
       "id": "pkg-pump-chw-001",
@@ -7,6 +8,142 @@
       "description": "Chilled-water horizontal end-suction pump package (qty 2)",
       "required_quantity": 2,
       "status": "ACTIVE"
+    },
+    {
+      "id": "pkg-pump-anchor-001",
+      "type": "PUMP_BASE_ANCHOR_KIT",
+      "description": "Anchor and leveling kit for one chilled-water pump base",
+      "required_quantity": 2,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "pkg-pump-tie-in-001",
+      "type": "PUMP_PIPING_CONNECTION_KIT",
+      "description": "Suction and discharge connection kit for one chilled-water pump",
+      "required_quantity": 2,
+      "status": "ACTIVE"
+    }
+  ],
+  "material_needs": [
+    {
+      "id": "need-pump-chw-001",
+      "package_id": "pkg-pump-chw-001",
+      "activity_id": "act-pump-installation",
+      "required_quantity": 2,
+      "required_usable_date": "2026-12-30",
+      "readiness_buffer_days": 2
+    },
+    {
+      "id": "need-pump-anchor-001",
+      "package_id": "pkg-pump-anchor-001",
+      "activity_id": "act-pump-site-prep",
+      "required_quantity": 2,
+      "required_usable_date": "2026-12-07",
+      "readiness_buffer_days": 1
+    },
+    {
+      "id": "need-pump-tie-in-001",
+      "package_id": "pkg-pump-tie-in-001",
+      "activity_id": "act-pump-piping-connections",
+      "required_quantity": 2,
+      "required_usable_date": "2027-01-05",
+      "readiness_buffer_days": 1
+    }
+  ],
+  "po_lines": [
+    {
+      "id": "pol-pump-001",
+      "po_id": "po-pump-001",
+      "supplier_id": "supplier-demo-pumps",
+      "supplier_name": "Demo Pump Supplier",
+      "quantity": 2,
+      "released_on": "2026-12-10",
+      "contractual_arrival_date": "2026-12-28",
+      "milestones": [
+        { "type": "FABRICATION", "planned_date": "2026-12-23" },
+        { "type": "TEST", "planned_date": "2026-12-24" },
+        { "type": "DISPATCH", "planned_date": "2026-12-24" },
+        { "type": "DELIVERY", "planned_date": "2026-12-28" }
+      ]
+    },
+    {
+      "id": "pol-pump-anchor-001",
+      "po_id": "po-pump-anchor-001",
+      "supplier_id": "supplier-demo-anchors",
+      "supplier_name": "Demo Anchor Kit Supplier",
+      "quantity": 2,
+      "released_on": "2026-11-30",
+      "contractual_arrival_date": "2026-12-04",
+      "milestones": [
+        { "type": "FABRICATION", "planned_date": "2026-12-01" },
+        { "type": "TEST", "planned_date": "2026-12-02" },
+        { "type": "DISPATCH", "planned_date": "2026-12-03" },
+        { "type": "DELIVERY", "planned_date": "2026-12-04" }
+      ]
+    },
+    {
+      "id": "pol-pump-tie-in-001",
+      "po_id": "po-pump-tie-in-001",
+      "supplier_id": "supplier-demo-connections",
+      "supplier_name": "Demo Connection Kit Supplier",
+      "quantity": 2,
+      "released_on": "2026-12-11",
+      "contractual_arrival_date": "2027-01-04",
+      "milestones": [
+        { "type": "FABRICATION", "planned_date": "2026-12-29" },
+        { "type": "TEST", "planned_date": "2026-12-30" },
+        { "type": "DISPATCH", "planned_date": "2026-12-31" },
+        { "type": "DELIVERY", "planned_date": "2027-01-04" }
+      ]
+    }
+  ],
+  "fulfillment_allocations": [
+    {
+      "id": "alloc-pump-chw-001",
+      "po_line_id": "pol-pump-001",
+      "material_need_id": "need-pump-chw-001",
+      "quantity": 2,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "alloc-pump-anchor-001",
+      "po_line_id": "pol-pump-anchor-001",
+      "material_need_id": "need-pump-anchor-001",
+      "quantity": 2,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "alloc-pump-tie-in-001",
+      "po_line_id": "pol-pump-tie-in-001",
+      "material_need_id": "need-pump-tie-in-001",
+      "quantity": 2,
+      "status": "ACTIVE"
+    }
+  ],
+  "vendor_commitments": [
+    {
+      "id": "commit-pump-chw-001",
+      "po_line_id": "pol-pump-001",
+      "promised_arrival_date": "2026-12-28",
+      "observed_at": "2026-12-10T16:00:00Z",
+      "source": "sandbox-vendor-acknowledgment",
+      "evidence_ref": "sandbox://vendor-acknowledgments/pol-pump-001"
+    },
+    {
+      "id": "commit-pump-anchor-001",
+      "po_line_id": "pol-pump-anchor-001",
+      "promised_arrival_date": "2026-12-04",
+      "observed_at": "2026-11-30T16:00:00Z",
+      "source": "sandbox-vendor-acknowledgment",
+      "evidence_ref": "sandbox://vendor-acknowledgments/pol-pump-anchor-001"
+    },
+    {
+      "id": "commit-pump-tie-in-001",
+      "po_line_id": "pol-pump-tie-in-001",
+      "promised_arrival_date": "2027-01-04",
+      "observed_at": "2026-12-11T16:00:00Z",
+      "source": "sandbox-vendor-acknowledgment",
+      "evidence_ref": "sandbox://vendor-acknowledgments/pol-pump-tie-in-001"
     }
   ]
 }

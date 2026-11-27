@@ -1,7 +1,179 @@
 {
-  "_note": "SYNTHETIC DATA — not real project records",
+  "_note": "SYNTHETIC DATA — not real project records. Planned start and finish dates are inclusive.",
   "project_id": "proj-hvac-demo-001",
   "name": "Commercial HVAC Chilled-Water System — Demo Project",
-  "activities": [],
-  "dependencies": []
+  "revision": 1,
+  "kind": "BASELINE",
+  "start_date": "2026-11-30",
+  "calendar": {
+    "working_weekdays": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"],
+    "holidays": ["2026-12-25", "2027-01-01"]
+  },
+  "constraints": [
+    {
+      "activity_id": "act-pump-site-prep",
+      "type": "START_NO_EARLIER_THAN",
+      "date": "2026-12-07"
+    }
+  ],
+  "activities": [
+    {
+      "id": "act-pump-design",
+      "name": "Finalize chilled-water pump design",
+      "type": "DESIGN",
+      "duration_workdays": 4,
+      "planned_start_date": "2026-11-30",
+      "planned_finish_date": "2026-12-03"
+    },
+    {
+      "id": "act-pump-submittal-review",
+      "name": "Review pump vendor submittal",
+      "type": "PROCUREMENT",
+      "duration_workdays": 4,
+      "planned_start_date": "2026-12-04",
+      "planned_finish_date": "2026-12-09"
+    },
+    {
+      "id": "act-pump-po-release",
+      "name": "Release pump purchase order",
+      "type": "PROCUREMENT",
+      "duration_workdays": 1,
+      "planned_start_date": "2026-12-10",
+      "planned_finish_date": "2026-12-10"
+    },
+    {
+      "id": "act-pump-fabrication",
+      "name": "Assemble chilled-water pump package",
+      "type": "FABRICATION",
+      "duration_workdays": 9,
+      "planned_start_date": "2026-12-11",
+      "planned_finish_date": "2026-12-23"
+    },
+    {
+      "id": "act-pump-factory-test",
+      "name": "Perform pump factory acceptance test",
+      "type": "INSPECTION",
+      "duration_workdays": 1,
+      "planned_start_date": "2026-12-24",
+      "planned_finish_date": "2026-12-24"
+    },
+    {
+      "id": "act-pump-delivery",
+      "name": "Deliver pump package to site",
+      "type": "DELIVERY",
+      "duration_workdays": 1,
+      "planned_start_date": "2026-12-28",
+      "planned_finish_date": "2026-12-28"
+    },
+    {
+      "id": "act-pump-receiving-inspection",
+      "name": "Inspect and accept delivered pumps",
+      "type": "INSPECTION",
+      "duration_workdays": 1,
+      "planned_start_date": "2026-12-29",
+      "planned_finish_date": "2026-12-29"
+    },
+    {
+      "id": "act-pump-site-prep",
+      "name": "Prepare pump bases and verify anchor locations",
+      "type": "INSTALLATION",
+      "duration_workdays": 3,
+      "planned_start_date": "2026-12-07",
+      "planned_finish_date": "2026-12-09"
+    },
+    {
+      "id": "act-pump-installation",
+      "name": "Set, anchor, and align chilled-water pumps",
+      "type": "INSTALLATION",
+      "duration_workdays": 3,
+      "planned_start_date": "2026-12-30",
+      "planned_finish_date": "2027-01-04"
+    },
+    {
+      "id": "act-pump-piping-connections",
+      "name": "Connect chilled-water piping and verify tie-ins",
+      "type": "INSTALLATION",
+      "duration_workdays": 2,
+      "planned_start_date": "2027-01-05",
+      "planned_finish_date": "2027-01-06"
+    },
+    {
+      "id": "act-pump-commissioning",
+      "name": "Commission the chilled-water pumps",
+      "type": "COMMISSIONING",
+      "duration_workdays": 2,
+      "planned_start_date": "2027-01-07",
+      "planned_finish_date": "2027-01-08"
+    },
+    {
+      "id": "act-pump-handover",
+      "name": "Hand over commissioned pump system",
+      "type": "COMMISSIONING",
+      "duration_workdays": 1,
+      "planned_start_date": "2027-01-11",
+      "planned_finish_date": "2027-01-11"
+    }
+  ],
+  "dependencies": [
+    {
+      "predecessor_id": "act-pump-design",
+      "successor_id": "act-pump-submittal-review",
+      "type": "FS"
+    },
+    {
+      "predecessor_id": "act-pump-submittal-review",
+      "successor_id": "act-pump-po-release",
+      "type": "FS"
+    },
+    {
+      "predecessor_id": "act-pump-po-release",
+      "successor_id": "act-pump-fabrication",
+      "type": "FS"
+    },
+    {
+      "predecessor_id": "act-pump-fabrication",
+      "successor_id": "act-pump-factory-test",
+      "type": "FS"
+    },
+    {
+      "predecessor_id": "act-pump-factory-test",
+      "successor_id": "act-pump-delivery",
+      "type": "FS"
+    },
+    {
+      "predecessor_id": "act-pump-delivery",
+      "successor_id": "act-pump-receiving-inspection",
+      "type": "FS"
+    },
+    {
+      "predecessor_id": "act-pump-design",
+      "successor_id": "act-pump-site-prep",
+      "type": "FS"
+    },
+    {
+      "predecessor_id": "act-pump-receiving-inspection",
+      "successor_id": "act-pump-installation",
+      "type": "FS"
+    },
+    {
+      "predecessor_id": "act-pump-site-prep",
+      "successor_id": "act-pump-installation",
+      "type": "FS"
+    },
+    {
+      "predecessor_id": "act-pump-installation",
+      "successor_id": "act-pump-piping-connections",
+      "type": "FS"
+    },
+    {
+      "predecessor_id": "act-pump-piping-connections",
+      "successor_id": "act-pump-commissioning",
+      "type": "FS"
+    },
+    {
+      "predecessor_id": "act-pump-commissioning",
+      "successor_id": "act-pump-handover",
+      "type": "FS"
+    }
+  ]
 }
