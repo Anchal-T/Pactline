@@ -1,5 +1,10 @@
-// Domain types, Zod schemas, and branded IDs for Pactline
-// All shared types live here — no business logic, no DB calls
+// Domain types, Zod schemas, and the shared specialist contract.
+// This entry is isomorphic (the frontend imports it). Node-only code lives in ./server.
 export * from "./ids.js";
 export * from "./events.js";
 export * from "./entities.js";
+export * from "./contracts.js";
+export * from "./validator.js";
+export * from "./canonical.js";
+export * from "./grounding.js";
+export * from "./mcp-schema.js";
