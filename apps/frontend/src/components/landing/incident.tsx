@@ -151,7 +151,7 @@ export function Incident() {
     <section ref={root} id="incident" className="relative py-12 sm:py-16 lg:py-20">
       <div className="mx-auto max-w-[1180px] px-5 sm:px-6">
         <div data-reveal>
-          <h2 className="t-h2 max-w-[16ch] text-ink">One incident, end to end</h2>
+          <h2 className="t-h2 max-w-[16ch] text-ink">One incident, <em className="gold-word">{"end to end."}</em></h2>
           <p className="t-lead mt-5 max-w-[34rem]">A sandbox incident with synthetic data. No real vendors, products or projects are named.</p>
         </div>
 

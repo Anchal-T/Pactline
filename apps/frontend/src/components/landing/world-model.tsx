@@ -67,7 +67,9 @@ export function WorldModel() {
       };
       const mm = gsap.matchMedia();
       mm.add("(min-width: 1024px)", () => {
-        ScrollTrigger.create({ trigger: grid.current, start: "center center", end: "+=130%", pin: true, onUpdate: follow });
+        // Centre the block in the viewport, but never closer than 7rem to the top so the navbar never covers the heading.
+        const start = () => `top ${Math.max(112, (window.innerHeight - (grid.current?.offsetHeight ?? 0)) / 2)}px`;
+        ScrollTrigger.create({ trigger: grid.current, start, end: "+=130%", pin: true, invalidateOnRefresh: true, onUpdate: follow });
       });
       mm.add("(max-width: 1023px)", () => {
         ScrollTrigger.create({ trigger: wrap.current, start: "top 70%", end: "bottom 30%", onUpdate: follow });
@@ -116,7 +118,7 @@ export function WorldModel() {
     <section ref={root} id="world" className="relative overflow-x-clip pt-6 pb-12 sm:py-16 lg:py-6">
       <div ref={grid} className="mx-auto grid max-w-[1180px] items-center gap-10 px-5 sm:px-6 lg:grid-cols-12 lg:gap-8">
         <div className="lg:col-span-5" data-reveal>
-          <h2 className="t-h2 max-w-[13ch] text-ink">A world model, not a chat log</h2>
+          <h2 className="t-h2 max-w-[13ch] text-ink">A <em className="gold-word">{"world model "}</em>, not a chat log</h2>
           <p className="t-lead mt-5 max-w-[30rem]">
             Every promise, revision and approval is a versioned record. The operator reasons over facts it can cite, and an approval only counts for the exact revision it names.
           </p>

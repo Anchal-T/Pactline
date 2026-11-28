@@ -11,6 +11,8 @@ export function useReveal(scope: RefObject<HTMLElement | null>) {
       const els = gsap.utils.toArray<HTMLElement>("[data-reveal]", scope.current);
       if (!els.length) return;
       gsap.set(els, { autoAlpha: 0, y: 28 });
+      /* Hands control from the CSS first-paint guard (globals.css) to GSAP. */
+      els.forEach((el) => el.setAttribute("data-rv", ""));
       ScrollTrigger.batch(els, {
         start: "top 88%",
         once: true,

@@ -9,7 +9,8 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary: "bg-brand text-brand-ink shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_10px_24px_-14px_var(--brand)] hover:bg-brand-hover",
-        secondary: "bg-transparent text-ink ring-1 ring-line-strong ring-inset hover:bg-brand-soft",
+        secondary: "bg-transparent text-ink ring-1 ring-line-strong ring-inset hover:bg-gold-soft hover:ring-gold-line",
+        gold: "bg-[linear-gradient(135deg,var(--gold-btn-a),var(--gold-btn-b))] text-[#1a1306] shadow-[inset_0_1px_0_rgb(255_255_255/0.4),0_10px_24px_-14px_var(--gold-btn-b)] hover:brightness-105",
         ghost: "bg-transparent text-ink-2 hover:bg-brand-soft hover:text-ink",
         link: "h-auto rounded-sm px-0 text-ink underline-offset-4 hover:underline",
       },

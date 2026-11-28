@@ -22,10 +22,15 @@ function collect<K extends string>(issues: z.ZodIssue[]): Errors<K> {
   return out;
 }
 
-function Heading({ title, body }: { title: string; body: string }) {
+function Heading({ title, accent, body }: { title: string; accent: string; body: string }) {
+  const [before, after] = title.split(accent) as [string, string];
   return (
     <div className="mb-9 grid gap-3">
-      <h1 className="font-display text-[2.6rem] leading-[1.04] font-normal tracking-[-0.022em] text-ink">{title}</h1>
+      <h1 className="font-display text-[2.6rem] leading-[1.04] font-normal tracking-[-0.022em] text-ink">
+        {before}
+        <em className="gold-word">{accent}</em>
+        {after}
+      </h1>
       <p className="t-body text-[0.9688rem]">{body}</p>
     </div>
   );
@@ -76,7 +81,7 @@ function Notice({ children }: { children: React.ReactNode }) {
 
 function Submit({ label }: { label: string }) {
   return (
-    <Button type="submit" size="lg" className="w-full justify-between">
+    <Button type="submit" size="lg" variant="gold" className="w-full justify-between">
       {label}
       <ButtonIcon>
         <ArrowRight size={15} weight="bold" />
@@ -121,7 +126,7 @@ export function LoginForm() {
 
   return (
     <>
-      <Heading title="Sign in to Pactline" body="Pick up open incidents where the operator left them." />
+      <Heading title="Sign in to Pactline" accent="Pactline" body="Pick up open incidents where the operator left them." />
       <SsoButtons verb="Continue" onPick={(p) => setNotice(`${p} single sign-on is not connected in this preview.`)} />
       <form noValidate onSubmit={submit} className="grid gap-5">
         <Field id="login-email" label="Work email" type="email" autoComplete="email" value={values.email} error={errors.email} onChange={set("email")} onBlur={() => check("email")} />
@@ -213,7 +218,7 @@ export function SignupForm() {
 
   return (
     <>
-      <Heading title="Create your account" body="Set up a workspace for your project's long-lead equipment packages." />
+      <Heading title="Create your account" accent="account" body="Set up a workspace for your project's long-lead equipment packages." />
       <SsoButtons verb="Sign up" onPick={(p) => setNotice(`${p} single sign-on is not connected in this preview.`)} />
       <form noValidate onSubmit={submit} className="grid gap-5">
         <div className="grid gap-5 sm:grid-cols-2 sm:gap-4">

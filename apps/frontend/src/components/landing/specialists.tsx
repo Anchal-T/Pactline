@@ -37,7 +37,8 @@ export function Specialists() {
     <section ref={root} id="specialists" className="relative py-12 sm:py-16 lg:py-20">
       <div className="mx-auto max-w-[1180px] px-5 sm:px-6">
         <div data-reveal className="max-w-[40rem]">
-          <h2 className="t-h2 text-ink">Specialists that hand off cleanly</h2>
+          <span className="gold-rule mb-6" aria-hidden />
+          <h2 className="t-h2 text-ink"><em className="gold-word">Specialists</em> that hand off cleanly</h2>
           <p className="t-lead mt-5">Each one works alone or in sequence, returns structured output with sources, and hands the decision to a person when it is unsure.</p>
         </div>
 

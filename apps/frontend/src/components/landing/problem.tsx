@@ -22,18 +22,20 @@ export function Problem() {
     () => {
       if (prefersReducedMotion()) return;
       const words = gsap.utils.toArray<HTMLElement>("[data-word]");
-      gsap.set(words, { opacity: 0.22 });
+      gsap.set(words, { opacity: 0.22, "--g": 0 });
+      /* Each word arrives in gold and settles to ink. --g drives a color-mix in CSS, so it follows the theme. */
+      const reveal = [{ opacity: 1, "--g": 1, duration: 0.5 }, { "--g": 0, duration: 0.7 }];
       const mm = gsap.matchMedia();
       mm.add("(min-width: 768px)", () => {
         gsap.to(words, {
-          opacity: 1,
+          keyframes: reveal,
           ease: "none",
           stagger: 0.08,
           scrollTrigger: { trigger: stage.current, start: "top top", end: "+=75%", pin: true, scrub: 0.5 },
         });
       });
       mm.add("(max-width: 767px)", () => {
-        gsap.to(words, { opacity: 1, ease: "none", stagger: 0.08, scrollTrigger: { trigger: stage.current, start: "top 85%", end: "center 45%", scrub: 0.5 } });
+        gsap.to(words, { keyframes: reveal, ease: "none", stagger: 0.08, scrollTrigger: { trigger: stage.current, start: "top 85%", end: "center 45%", scrub: 0.5 } });
       });
     },
     { scope: root },
@@ -41,11 +43,11 @@ export function Problem() {
 
   return (
     <section ref={root} id="problem" className="relative">
-      <div ref={stage} className="flex flex-col justify-center gap-10 py-12 md:min-h-[100dvh] md:gap-14 md:py-16">
+      <div ref={stage} className="flex flex-col justify-center gap-10 py-12 md:min-h-[100dvh] md:gap-10 md:pt-28 md:pb-10">
         <div className="mx-auto w-full max-w-[1180px] px-5 sm:px-6">
-          <p className="t-h2 max-w-[26ch] text-ink" aria-label={STATEMENT}>
+          <p className="t-h2 max-w-[26ch] text-ink md:text-[length:clamp(2.35rem,min(1.55rem+2.6vw,calc((100dvh-24rem)/7.3)),4.1rem)]" aria-label={STATEMENT}>
             {STATEMENT.split(" ").map((w, i) => (
-              <span key={i} aria-hidden data-word className="inline-block pr-[0.24em]">
+              <span key={i} aria-hidden data-word className="inline-block pr-[0.24em] text-[color-mix(in_srgb,var(--gold-hi)_calc(var(--g,0)*100%),var(--ink))]">
                 {w}
               </span>
             ))}

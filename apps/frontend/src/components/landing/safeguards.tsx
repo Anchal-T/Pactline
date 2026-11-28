@@ -130,7 +130,7 @@ export function Safeguards() {
     <section ref={root} id="safeguards" className="relative py-12 sm:py-16 lg:py-20">
       <div className="mx-auto max-w-[1180px] px-5 sm:px-6">
         <div data-reveal className="max-w-[40rem]">
-          <h2 className="t-h2 text-ink">Eight things Pactline will not do</h2>
+          <h2 className="t-h2 text-ink">Eight things Pactline <em className="gold-word">will not</em> do</h2>
           <p className="t-lead mt-5">Each one is enforced in the database or in deterministic code, never in a prompt. Pick one and watch the attempt fail.</p>
         </div>
 
@@ -138,7 +138,7 @@ export function Safeguards() {
           <div className="grid gap-8 lg:col-span-6" data-reveal>
             {GROUPS.map((g) => (
               <div key={g.name}>
-                <h3 className="t-label border-b border-line pb-3 text-ink-2">{g.name}</h3>
+                <h3 className="t-label border-b-[1.5px] border-gold-line pb-3 text-ink-2">{g.name}</h3>
                 <ol className="mt-2 grid">
                   {g.rules.map((rule) => {
                     const i = index++;

@@ -10,9 +10,12 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <PumpSketch plate="var(--surface)" className="absolute inset-0" />
         <div className="relative flex flex-col gap-10 p-10 xl:p-12">
           <Logo />
+          <div className="grid gap-6">
+          <span className="gold-rule" aria-hidden />
           <p className="font-display max-w-[19ch] text-[clamp(2rem,1.2rem+1.6vw,2.9rem)] leading-[1.08] tracking-[-0.02em] text-ink">
-            Every open incident has an owner, a next step and a review date
+            Every open incident has an <em className="gold-word">owner</em>, a next step and a review date
           </p>
+          </div>
         </div>
       </aside>
 
