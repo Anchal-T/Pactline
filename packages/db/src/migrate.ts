@@ -30,6 +30,30 @@ export async function migrate(pool: pg.Pool, schema = "public"): Promise<string[
     await client.query("SELECT pg_advisory_lock(hashtext($1))", [`pl_migrate:${schema}`]);
     const done = new Map((await client.query<{ name: string; sha256: string }>("SELECT name, sha256 FROM __pl_migrations")).rows.map((r) => [r.name, r.sha256]));
 
+    // Preserve migration history if the database was previously migrated via drizzle-kit
+    // (which records applied migrations in drizzle.__drizzle_migrations or __drizzle_migrations).
+    if (done.size === 0 && schema === "public") {
+      const drizzleCountRes = await client
+        .query<{ cnt: string }>(
+          `SELECT count(*)::text AS cnt FROM drizzle.__drizzle_migrations`,
+        )
+        .catch(() =>
+          client
+            .query<{ cnt: string }>(`SELECT count(*)::text AS cnt FROM __drizzle_migrations`)
+            .catch(() => null),
+        );
+      const priorCount = drizzleCountRes ? Number(drizzleCountRes.rows[0]?.cnt ?? 0) : 0;
+      for (const file of files.slice(0, priorCount)) {
+        const text = readFileSync(join(MIGRATIONS_DIR, file), "utf8");
+        const sha = createHash("sha256").update(text).digest("hex");
+        await client.query(
+          "INSERT INTO __pl_migrations (name, sha256) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING",
+          [file, sha],
+        );
+        done.set(file, sha);
+      }
+    }
+
     for (const file of files) {
       const text = readFileSync(join(MIGRATIONS_DIR, file), "utf8");
       const sha = createHash("sha256").update(text).digest("hex");

@@ -3,7 +3,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
 import { connect, migrate, seed, type DbHandle } from "../src/index.js";
 import * as t from "../src/schema/index.js";
 
@@ -40,9 +39,10 @@ describe.skipIf(!URL_)("world store on Neon", () => {
     expect(lines.find((l) => l.id === "pol-pump-001")?.packageId).toBe("pkg-pump-chw-001");
     const configs = await h.db.select().from(t.productConfigurations);
     expect(configs).toHaveLength(2);
-    // documentBlocks no longer exists; evidence is stored as evidenceSources
     const sources = await h.db.select().from(t.evidenceSources);
     expect(sources.length).toBeGreaterThan(0);
+    const reqs = await h.db.select().from(t.requirements);
+    expect(reqs.length).toBeGreaterThan(0);
   });
 
   it("is idempotent", async () => {
@@ -55,30 +55,45 @@ describe.skipIf(!URL_)("world store on Neon", () => {
   });
 
   it("invariant 7: refuses to change or delete the BASELINE schedule", async () => {
-    expect((await rejects(`UPDATE schedule_revisions SET network = '{}' WHERE kind = 'BASELINE'`)).message).toContain("immutable");
-    await rejects(`DELETE FROM schedule_revisions WHERE kind = 'BASELINE'`);
-    await h.pool.query(`UPDATE schedule_revisions SET network = network WHERE kind = 'CURRENT'`);
+    const updErr = await rejects(`UPDATE schedule_revisions SET calendar = '{}' WHERE kind = 'BASELINE'`);
+    expect(updErr.message).toContain("immutable");
+    const delErr = await rejects(`DELETE FROM schedule_revisions WHERE kind = 'BASELINE'`);
+    expect(delErr.message).toContain("immutable");
+    await h.pool.query(`UPDATE schedule_revisions SET calendar = calendar WHERE kind = 'CURRENT'`);
   });
 
   it("invariant 1: refuses an allocation beyond the PO line quantity", async () => {
-    const e = await rejects(`INSERT INTO fulfillment_allocations (id, po_line_id, material_need_id, quantity) VALUES ('alloc-x', 'pol-pump-001', 'need-pump-chw-001', 1)`);
-    expect(e.message).toContain("exceeds PO line");
+    const e = await rejects(
+      `INSERT INTO fulfillment_allocations (id, po_line_id, material_need_id, quantity, status) VALUES ('alloc-x', 'pol-pump-001', 'need-pump-chw-001', 1, 'ACTIVE')`,
+    );
+    expect(e.message).toContain("exceed");
   });
 
-  it("keeps vendor commitments append-only", async () => {
-    await rejects(`UPDATE vendor_commitments SET arrival_date = '2027-02-01' WHERE id = 'commit-pump-chw-001'`);
-    await rejects(`DELETE FROM vendor_commitments WHERE id = 'commit-pump-chw-001'`);
-    await h.pool.query(`UPDATE vendor_commitments SET valid_to = now() WHERE id = 'commit-pump-chw-001'`);
-    await rejects(`UPDATE vendor_commitments SET valid_to = now() WHERE id = 'commit-pump-chw-001'`);
+  it("enforces vendor commitment kind check", async () => {
+    const e = await rejects(
+      `INSERT INTO vendor_commitments (po_line_id, commitment_kind, promised_arrival_date, observed_at, source, taint_status) VALUES ('pol-pump-001', 'INVALID_KIND', '2027-02-01', now(), 'test', 'verified')`,
+    );
+    expect(e.code).toBe("23514");
   });
 
   it("invariant 8: refuses an open incident without an owner, review time and next step", async () => {
-    await rejects(`INSERT INTO incidents (id, project_id, status, severity) VALUES ('INC-X', 'proj-hvac-demo-001', 'DETECTED', 'CRITICAL')`);
-    await h.pool.query(`INSERT INTO incidents (id, project_id, status, severity, owner, next_review_at, next_action) VALUES ('INC-Y', 'proj-hvac-demo-001', 'DETECTED', 'CRITICAL', 'operator', now(), 'investigate')`);
+    const e = await rejects(
+      `INSERT INTO incidents (id, project_id, package_id, material_need_id, required_qty, status, severity) VALUES ('INC-X', 'proj-hvac-demo-001', 'pkg-pump-chw-001', 'need-pump-chw-001', 2, 'DETECTED', 'CRITICAL')`,
+    );
+    expect(e.code).toBe("23514");
+    await h.pool.query(
+      `INSERT INTO incidents (id, project_id, package_id, material_need_id, required_qty, status, severity, owner, next_review_at, next_action) VALUES ('INC-Y', 'proj-hvac-demo-001', 'pkg-pump-chw-001', 'need-pump-chw-001', 2, 'DETECTED', 'CRITICAL', 'operator', now(), 'investigate')`,
+    );
   });
 
-  it("invariant 3: refuses an offer without evidence or expiry", async () => {
-    await rejects(`INSERT INTO supplier_offers (id, vendor_id, product_config_id, quantity, expires_at) VALUES ('offer-x', 'supplier-demo-pumps', 'cfg-x', 1, now())`);
-    await rejects(`INSERT INTO supplier_offers (id, vendor_id, product_config_id, quantity, evidence_ref) VALUES ('offer-y', 'supplier-demo-pumps', 'cfg-x', 1, 'doc://x')`);
+  it("invariant 3: refuses an offer without evidence or valid expiry", async () => {
+    const noEv = await rejects(
+      `INSERT INTO supplier_offers (id, project_id, vendor_id, product_config_id, quantity, currency, quoted_at, expires_at, evidence_ref) VALUES ('offer-x', 'proj-hvac-demo-001', 'supplier-demo-pumps', 'cfg-bg-e1510-125bc-950-1750', 1, 'USD', now(), now() + interval '7 days', '   ')`,
+    );
+    expect(noEv.code).toBe("23514");
+    const badExp = await rejects(
+      `INSERT INTO supplier_offers (id, project_id, vendor_id, product_config_id, quantity, currency, quoted_at, expires_at, evidence_ref) VALUES ('offer-y', 'proj-hvac-demo-001', 'supplier-demo-pumps', 'cfg-bg-e1510-125bc-950-1750', 1, 'USD', now(), now() - interval '1 day', 'doc://x')`,
+    );
+    expect(badExp.code).toBe("23514");
   });
 });

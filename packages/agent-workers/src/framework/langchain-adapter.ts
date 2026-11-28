@@ -89,6 +89,11 @@ export function createChatModel(config: LangChainConfig): ChatOpenAI {
   });
 }
 
+export interface StructuredCallOptions {
+  /** Maximum completion tokens for this invocation (capped to remaining task budget). */
+  readonly maxTokens?: number;
+}
+
 /**
  * Invoke model with structured output using Zod schema.
  */
@@ -96,13 +101,18 @@ export async function invokeWithStructuredOutput<T>(
   model: ChatOpenAI,
   schema: z.ZodType<T>,
   prompt: string,
+  options?: StructuredCallOptions,
 ): Promise<{ output: T; usage: ModelUsage }> {
   const start = Date.now();
 
   // Use LangChain's withStructuredOutput for Zod schema binding
-  const structured = model.withStructuredOutput(schema, {
+  const baseStructured = model.withStructuredOutput(schema, {
     name: schema.description || "response",
   });
+  const structured =
+    options?.maxTokens !== undefined
+      ? baseStructured.bind({ max_tokens: options.maxTokens } as Record<string, unknown>)
+      : baseStructured;
 
   const output = await structured.invoke(prompt);
 
@@ -140,6 +150,7 @@ export function quarantineExtraction<T>(
   schema: z.ZodType<T>,
   untrustedText: string,
   instruction: string,
+  options?: StructuredCallOptions,
 ): Promise<{ output: T; usage: ModelUsage }> {
   // Spotlight untrusted content with clear delimiters
   const prompt = `${instruction}
@@ -152,7 +163,7 @@ ${untrustedText}
 
 Return only the structured extraction as specified.`;
 
-  return invokeWithStructuredOutput(model, schema, prompt);
+  return invokeWithStructuredOutput(model, schema, prompt, options);
 }
 
 /**
@@ -164,12 +175,26 @@ export async function extractWithAgreement<T extends Record<string, unknown>>(
   schema: z.ZodType<T>,
   prompt: string,
   k: number = 3,
+  options?: StructuredCallOptions,
 ): Promise<{ output: Partial<T>; usage: ModelUsage[]; agreement: number }> {
   const usages: ModelUsage[] = [];
   const outputs: T[] = [];
 
   for (let i = 0; i < k; i++) {
-    const { output, usage } = await invokeWithStructuredOutput(model, schema, prompt);
+    let remaining: number | undefined;
+    if (options?.maxTokens !== undefined) {
+      const used = usages.reduce((s, u) => s + u.tokens_in + u.tokens_out, 0);
+      remaining = options.maxTokens - used;
+      if (remaining <= 0) {
+        throw new Error(`Token budget exhausted during multi-run extraction (${used} >= ${options.maxTokens})`);
+      }
+    }
+    const { output, usage } = await invokeWithStructuredOutput(
+      model,
+      schema,
+      prompt,
+      remaining !== undefined ? { maxTokens: remaining } : undefined,
+    );
     outputs.push(output);
     usages.push(usage);
   }
