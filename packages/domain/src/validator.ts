@@ -83,7 +83,8 @@ export function validateEnvelope<T>(input: SpecialistResult<T>, ctx: ValidationC
   /* Rule 3: verbatim excerpts. Ref that fail are dropped and everything that cited them is weakened. */
   const dropped = new Set<string>();
   for (const ref of env.evidence) {
-    if (ref.kind === "derived") continue;
+    // Only a ref that is a computation on both axes skips the text check; any other ref must quote its source.
+    if (ref.kind === "derived" && ref.trust_tier === "derived") continue;
     const text = ctx.sourceText(ref);
     if (text === undefined) {
       dropped.add(ref.ref_id);

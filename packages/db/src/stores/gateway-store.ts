@@ -1,5 +1,6 @@
 import { and, asc, eq, gt, gte, isNull, lte, or, sql } from "drizzle-orm";
 import type { DB } from "../client.js";
+import { supplierOffers } from "../schema/engineering.js";
 import { approvals, subjectRevisions } from "../schema/incidents.js";
 import { actionReceipts } from "../schema/runtime.js";
 
@@ -76,6 +77,27 @@ export interface RateLimit {
   max: number;
 }
 
+export interface SupplierOfferValidity {
+  offer_rev: string;
+  expires_at: Date;
+}
+
+export type Fence = Pick<ActionReceiptRecord, "receipt_id" | "retry_count">;
+
+/**
+ * `offer_rev` pins one row of `supplier_offers` at one revision: `<supplier_offers.id>@r<revision>`.
+ * The gateway resolves the pin to that row's `expires_at`; any other shape or a revision that is no
+ * longer the row's current one resolves to nothing, so the pinned offer cannot be verified.
+ */
+export function offerRev(offerId: string, revision: number): string {
+  return `${offerId}@r${revision}`;
+}
+
+function parseOfferRev(rev: string): { id: string; revision: number } | null {
+  const match = /^(.+)@r([1-9]\d*)$/.exec(rev);
+  return match ? { id: match[1]!, revision: Number(match[2]) } : null;
+}
+
 export interface Claim {
   receipt: ActionReceiptRecord;
   recovered: boolean;
@@ -87,6 +109,7 @@ export interface GatewayTx {
     now: Date,
   ): Promise<ApprovalRecord | null>;
   currentRevisions(subjectId: string): Promise<RevisionPins | null>;
+  getOffer(offerRev: string): Promise<SupplierOfferValidity | null>;
   getReceiptByKey(idempotencyKey: string): Promise<ActionReceiptRecord | null>;
   insertReceipt(
     receipt: NewReceiptRecord,
@@ -97,9 +120,9 @@ export interface GatewayTx {
     now: Date,
     leaseExpiresAt: Date,
   ): Promise<Claim | null>;
-  markConfirmed(receiptId: string, externalId: string): Promise<void>;
-  markUncertain(receiptId: string, error: string): Promise<void>;
-  markFailed(receiptId: string, error: string): Promise<void>;
+  markConfirmed(fence: Fence, externalId: string): Promise<boolean>;
+  markUncertain(fence: Fence, error: string): Promise<boolean>;
+  markFailed(fence: Fence, error: string): Promise<boolean>;
 }
 
 type DrizzleTx = Parameters<Parameters<DB["transaction"]>[0]>[0];
@@ -194,6 +217,23 @@ class PostgresGatewayTx implements GatewayTx {
       .for("share");
 
     return row ? toRevisionPins(row) : null;
+  }
+
+  async getOffer(rev: string): Promise<SupplierOfferValidity | null> {
+    const pin = parseOfferRev(rev);
+    if (!pin) return null;
+    const [row] = await this.tx
+      .select({ expiresAt: supplierOffers.expiresAt })
+      .from(supplierOffers)
+      .where(
+        and(
+          eq(supplierOffers.id, pin.id),
+          eq(supplierOffers.revision, pin.revision),
+        ),
+      )
+      .for("share");
+
+    return row ? { offer_rev: rev, expires_at: row.expiresAt } : null;
   }
 
   async getReceiptByKey(
@@ -319,38 +359,47 @@ class PostgresGatewayTx implements GatewayTx {
     };
   }
 
-  async markConfirmed(receiptId: string, externalId: string): Promise<void> {
-    await this.tx
-      .update(actionReceipts)
-      .set({
-        status: "CONFIRMED",
-        externalId,
-        confirmedAt: this.clock(),
-        leaseExpiresAt: null,
-      })
-      .where(eq(actionReceipts.receiptId, receiptId));
+  async markConfirmed(fence: Fence, externalId: string): Promise<boolean> {
+    return this.fencedUpdate(fence, {
+      status: "CONFIRMED",
+      externalId,
+      confirmedAt: this.clock(),
+      leaseExpiresAt: null,
+    });
   }
 
-  async markUncertain(receiptId: string, error: string): Promise<void> {
-    await this.tx
-      .update(actionReceipts)
-      .set({
-        status: "UNCERTAIN",
-        error,
-        leaseExpiresAt: null,
-      })
-      .where(eq(actionReceipts.receiptId, receiptId));
+  async markUncertain(fence: Fence, error: string): Promise<boolean> {
+    return this.fencedUpdate(fence, {
+      status: "UNCERTAIN",
+      error,
+      leaseExpiresAt: null,
+    });
   }
 
-  async markFailed(receiptId: string, error: string): Promise<void> {
-    await this.tx
+  async markFailed(fence: Fence, error: string): Promise<boolean> {
+    return this.fencedUpdate(fence, {
+      status: "FAILED",
+      error,
+      leaseExpiresAt: null,
+    });
+  }
+
+  private async fencedUpdate(
+    fence: Fence,
+    set: Partial<typeof actionReceipts.$inferInsert>,
+  ): Promise<boolean> {
+    const updated = await this.tx
       .update(actionReceipts)
-      .set({
-        status: "FAILED",
-        error,
-        leaseExpiresAt: null,
-      })
-      .where(eq(actionReceipts.receiptId, receiptId));
+      .set(set)
+      .where(
+        and(
+          eq(actionReceipts.receiptId, fence.receipt_id),
+          eq(actionReceipts.status, "DISPATCHING"),
+          eq(actionReceipts.retryCount, fence.retry_count),
+        ),
+      )
+      .returning({ receiptId: actionReceipts.receiptId });
+    return updated.length > 0;
   }
 }
 

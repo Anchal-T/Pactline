@@ -193,6 +193,15 @@ export interface RateLimit {
   max: number;
 }
 
+/** The validity window of one pinned supplier offer revision. */
+export interface SupplierOfferValidity {
+  offer_rev: string;
+  expires_at: Date;
+}
+
+/** Fencing token for result writes: the claim that set this retry_count must still be current. */
+export type Fence = Pick<ActionReceipt, "receipt_id" | "retry_count">;
+
 /** A receipt this worker now holds. `recovered` means a previous worker's lease expired mid-dispatch. */
 export interface Claim {
   receipt: ActionReceipt;
@@ -201,12 +210,13 @@ export interface Claim {
 
 /**
  * Everything one gateway transaction may read or write. The Postgres store runs the callback inside
- * BEGIN ... COMMIT, reads approvals and revisions FOR SHARE (so a revision or a revocation cannot commit
+ * BEGIN ... COMMIT, reads approvals, revisions and offers FOR SHARE (so a revision or a revocation cannot commit
  * until this transaction does), and rolls back if the callback throws.
  */
 export interface GatewayTx {
   getValidApproval(approvalId: string, now: Date): Promise<Approval | null>;
   currentRevisions(subjectId: string): Promise<RevisionPins | null>;
+  getOffer(offerRev: string): Promise<SupplierOfferValidity | null>;
   getReceiptByKey(idempotencyKey: string): Promise<ActionReceipt | null>;
   /**
    * Insert a PENDING receipt. A receipt with the same key wins (DUPLICATE). With `rateLimit`, refuse
@@ -219,9 +229,13 @@ export interface GatewayTx {
    * Returns null when the receipt is not claimable, for example because another worker holds it.
    */
   claim(receiptId: string, now: Date, leaseExpiresAt: Date): Promise<Claim | null>;
-  markConfirmed(receiptId: string, externalId: string): Promise<void>;
-  markUncertain(receiptId: string, error: string): Promise<void>;
-  markFailed(receiptId: string, error: string): Promise<void>;
+  /**
+   * Result writes apply only while `fence` is the current claim (DISPATCHING with the same retry_count).
+   * Return false when a later claim took the receipt, so a worker whose lease expired writes nothing.
+   */
+  markConfirmed(fence: Fence, externalId: string): Promise<boolean>;
+  markUncertain(fence: Fence, error: string): Promise<boolean>;
+  markFailed(fence: Fence, error: string): Promise<boolean>;
 }
 
 export interface GatewayStore {
@@ -284,7 +298,8 @@ interface ApprovalRequest {
  *
  * Enforces:
  * - Invariant 2: No unauthorized technical/commercial action
- * - Invariant 4: No stale approval reuse (checked inside the enqueue transaction and again at dispatch)
+ * - Invariant 3/4: No expired supplier offer and no stale approval reuse (checked inside the enqueue
+ *   transaction and again at dispatch)
  * - Invariant 6: No blind retry on uncertain writes
  * - Taint policy: No tainted arguments to side effects without approval
  */
@@ -366,6 +381,16 @@ export class ExecutionGateway {
     if (proposal.action_class && proposal.action_class !== rule.class) {
       return deny(`${proposal.action_type} is ${rule.class}, not ${proposal.action_class}`, "Action class does not match the trusted rule");
     }
+    if (!rule.outbound) {
+      const destination = [
+        ...(proposal.recipient ? ["recipient"] : []),
+        ...(proposal.template_id ? ["template_id"] : []),
+        ...RESERVED_OUTBOUND_ARGS.filter((k) => k in proposal.arguments).map((k) => `arguments.${k}`),
+      ];
+      if (destination.length) {
+        return deny(`${proposal.action_type} is not an outbound action and cannot carry ${destination.join(", ")}`, "Policy violation: destination on a non-outbound action");
+      }
+    }
 
     switch (rule.class) {
       case "READ":
@@ -415,6 +440,15 @@ export class ExecutionGateway {
         return deny(`Approval pins ${k}=${approval.pins[k] ?? "none"}, current is ${current[k] ?? "none"}`, "Approval is stale for the current revisions");
       }
     }
+
+    const offerRev = approval.pins.offer_rev;
+    if (offerRev) {
+      const offer = await tx.getOffer(offerRev);
+      if (!offer) return deny(`Supplier offer ${offerRev} not found`, "Cannot verify supplier offer");
+      if (offer.expires_at.getTime() <= now.getTime()) {
+        return deny(`Supplier offer ${offerRev} expired at ${offer.expires_at.toISOString()}`, "Supplier offer expired");
+      }
+    }
     return { ok: true };
   }
 
@@ -456,11 +490,17 @@ export class ExecutionGateway {
     return receipt.action_class === "BINDING" || (receipt.action_class === "EXTERNAL_WRITE" && receipt.tainted_arguments.length > 0);
   }
 
+  /** READ and DRAFT have no external side effect: their receipt is the log entry and is never dispatched. */
+  private reachesAdapter(actionClass: ActionClass): boolean {
+    return actionClass === "EXTERNAL_WRITE" || actionClass === "BINDING";
+  }
+
   private toReceipt(proposal: ActionProposal, rule: ActionRule, idempotencyKey: string): NewReceipt {
+    const dispatched = this.reachesAdapter(rule.class);
     return {
       action_id: proposal.action_id,
       idempotency_key: idempotencyKey,
-      status: "PENDING",
+      status: dispatched ? "PENDING" : "CONFIRMED",
       action_type: proposal.action_type,
       action_class: rule.class,
       incident_id: proposal.incident_id,
@@ -473,7 +513,7 @@ export class ExecutionGateway {
       recipient: proposal.recipient ?? null,
       template_id: proposal.template_id ?? null,
       dispatched_at: null,
-      confirmed_at: null,
+      confirmed_at: dispatched ? null : this.clock(),
       external_id: null,
       error: null,
       lease_expires_at: null,
@@ -499,27 +539,31 @@ export class ExecutionGateway {
       try {
         externalId = await this.adapter.reconcile(receipt.idempotency_key);
       } catch (err) {
-        await this.store.transaction((tx) => tx.markUncertain(receiptId, message(err, "Cannot verify external state")));
+        await this.store.transaction((tx) => tx.markUncertain(receipt, message(err, "Cannot verify external state")));
         return;
       }
       if (externalId) {
         const found = externalId;
-        await this.store.transaction((tx) => tx.markConfirmed(receiptId, found));
+        await this.store.transaction((tx) => tx.markConfirmed(receipt, found));
         return;
       }
     }
 
     // Retry budget and approval are checked while this worker holds the lease, right before the write.
     const gate = await this.store.transaction(async (tx): Promise<Check> => {
+      if (!this.reachesAdapter(receipt.action_class)) {
+        await tx.markFailed(receipt, `${receipt.action_class} actions are never dispatched`);
+        return deny("Not dispatchable", "No external side effect for this class");
+      }
       if (receipt.retry_count > this.policy.maxRetries) {
-        await tx.markFailed(receiptId, "Max retries exceeded");
+        await tx.markFailed(receipt, "Max retries exceeded");
         return deny("Max retries exceeded", "Retry budget spent");
       }
       if (this.needsApproval(receipt)) {
         const rule = this.rules[receipt.action_type];
         const ok = rule ? await this.verifyApproval(tx, receipt, rule) : deny(`Unknown action type ${receipt.action_type}`, "No trusted rule");
         if (!ok.ok) {
-          await tx.markFailed(receiptId, `Approval no longer valid at dispatch: ${ok.error}`);
+          await tx.markFailed(receipt, `Approval no longer valid at dispatch: ${ok.error}`);
           return ok;
         }
       }
@@ -527,15 +571,17 @@ export class ExecutionGateway {
     });
     if (!gate.ok) return;
 
+    // Every result write below is fenced on this claim: if the lease lapsed and another worker reclaimed
+    // the receipt, the write changes nothing and this worker stops.
     try {
       const result = await this.adapter.execute(receipt);
       const externalId = result.external_id;
       if (result.success && externalId) {
-        await this.store.transaction((tx) => tx.markConfirmed(receiptId, externalId));
+        await this.store.transaction((tx) => tx.markConfirmed(receipt, externalId));
       } else if (result.uncertain) {
         await this.reconcileAction(receipt);
       } else {
-        await this.store.transaction((tx) => tx.markFailed(receiptId, result.error || "Execution failed"));
+        await this.store.transaction((tx) => tx.markFailed(receipt, result.error || "Execution failed"));
       }
     } catch {
       await this.reconcileAction(receipt);
@@ -550,10 +596,10 @@ export class ExecutionGateway {
   private async reconcileAction(receipt: ActionReceipt): Promise<void> {
     try {
       const externalId = await this.adapter.reconcile(receipt.idempotency_key);
-      if (externalId) await this.store.transaction((tx) => tx.markConfirmed(receipt.receipt_id, externalId));
+      if (externalId) await this.store.transaction((tx) => tx.markConfirmed(receipt, externalId));
       // Not found: stays DISPATCHING. After the lease expires the next claim reconciles again before retrying.
     } catch (err) {
-      await this.store.transaction((tx) => tx.markUncertain(receipt.receipt_id, message(err, "Cannot verify external state")));
+      await this.store.transaction((tx) => tx.markUncertain(receipt, message(err, "Cannot verify external state")));
     }
   }
 
@@ -585,6 +631,7 @@ export class MemoryGatewayStore implements GatewayStore {
   readonly receipts = new Map<string, ActionReceipt>();
   readonly approvals = new Map<string, Approval>();
   readonly revisions = new Map<string, RevisionPins>();
+  readonly offers = new Map<string, SupplierOfferValidity>();
   private seq = 0;
   private lock: Promise<unknown> = Promise.resolve();
 
@@ -627,9 +674,17 @@ export class MemoryGatewayStore implements GatewayStore {
     });
   }
 
-  private patch(id: string, p: Partial<ActionReceipt>) {
-    const r = this.receipts.get(id);
-    if (r) this.receipts.set(id, { ...r, ...p });
+  setOffer(offer: SupplierOfferValidity): Promise<void> {
+    return this.transaction(async () => {
+      this.offers.set(offer.offer_rev, offer);
+    });
+  }
+
+  private fencedPatch(fence: Fence, p: Partial<ActionReceipt>): boolean {
+    const r = this.receipts.get(fence.receipt_id);
+    if (!r || r.status !== "DISPATCHING" || r.retry_count !== fence.retry_count) return false;
+    this.receipts.set(fence.receipt_id, { ...r, ...p });
+    return true;
   }
 
   private readonly tx: GatewayTx = {
@@ -640,6 +695,10 @@ export class MemoryGatewayStore implements GatewayStore {
     currentRevisions: async (subjectId) => {
       const r = this.revisions.get(subjectId);
       return r ? { ...r } : null;
+    },
+    getOffer: async (offerRev) => {
+      const o = this.offers.get(offerRev);
+      return o ? { ...o } : null;
     },
     getReceiptByKey: async (key) => {
       for (const r of this.receipts.values()) if (r.idempotency_key === key) return { ...r };
@@ -667,8 +726,9 @@ export class MemoryGatewayStore implements GatewayStore {
       this.receipts.set(id, next);
       return { receipt: { ...next }, recovered: stranded };
     },
-    markConfirmed: async (id, externalId) => this.patch(id, { status: "CONFIRMED", external_id: externalId, confirmed_at: this.clock(), lease_expires_at: null }),
-    markUncertain: async (id, error) => this.patch(id, { status: "UNCERTAIN", error, lease_expires_at: null }),
-    markFailed: async (id, error) => this.patch(id, { status: "FAILED", error, lease_expires_at: null }),
+    markConfirmed: async (fence, externalId) =>
+      this.fencedPatch(fence, { status: "CONFIRMED", external_id: externalId, confirmed_at: this.clock(), lease_expires_at: null }),
+    markUncertain: async (fence, error) => this.fencedPatch(fence, { status: "UNCERTAIN", error, lease_expires_at: null }),
+    markFailed: async (fence, error) => this.fencedPatch(fence, { status: "FAILED", error, lease_expires_at: null }),
   };
 }

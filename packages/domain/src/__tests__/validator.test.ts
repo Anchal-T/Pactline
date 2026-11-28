@@ -52,6 +52,20 @@ describe("rule 3: verbatim excerpts", () => {
     const v = validateEnvelope(envelope({ evidence: [derived], findings: [finding({ subject })] }), context({ sourceText: () => "" }));
     expect(v.issues).toEqual([]);
   });
+  it("checks the excerpt of a ref that claims kind derived without trust_tier derived", () => {
+    const forged = ref({ kind: "derived", trust_tier: "primary", content_hash: undefined, excerpt: "Head at 100 m3/h : 41.0 m." });
+    const v = validateEnvelope(envelope({ evidence: [forged] }), context());
+    expect(v.issues.map((i) => i.code)).toContain("EXCERPT_NOT_FOUND");
+    expect(v.envelope.evidence).toEqual([]);
+    expect(v.envelope.findings[0]!.verdict).toBe("UNKNOWN");
+    expect(v.envelope.status).not.toBe("OK");
+    expect(v.presentable).toBe(false);
+  });
+  it("drops a ref with trust_tier derived but a document kind when its source cannot be loaded", () => {
+    const v = validateEnvelope(envelope({ evidence: [ref({ trust_tier: "derived" })] }), context({ sourceText: () => undefined }));
+    expect(v.issues.map((i) => i.code)).toContain("SOURCE_UNAVAILABLE");
+    expect(v.envelope.findings[0]!.verdict).toBe("UNKNOWN");
+  });
 });
 
 describe("rule 2: no invention", () => {

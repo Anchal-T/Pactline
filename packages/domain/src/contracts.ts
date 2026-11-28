@@ -75,6 +75,7 @@ export const SourceRefSchema = z
   .superRefine((r, ctx) => {
     if (r.kind !== "derived" && !r.content_hash) ctx.addIssue({ code: "custom", path: ["content_hash"], message: "content_hash is required unless kind is derived" });
     if (r.kind !== "derived" && r.excerpt.trim() === "") ctx.addIssue({ code: "custom", path: ["excerpt"], message: "a non-derived source needs a verbatim excerpt" });
+    if (r.kind === "derived" && r.trust_tier !== "derived") ctx.addIssue({ code: "custom", path: ["trust_tier"], message: "a derived ref must have trust_tier derived" });
   });
 export type SourceRef = z.infer<typeof SourceRefSchema>;
 

@@ -12,6 +12,11 @@ describe("SourceRef", () => {
     expect(SourceRefSchema.safeParse(ref({ excerpt: "  " })).success).toBe(false);
     expect(SourceRefSchema.safeParse(ref({ kind: "derived", trust_tier: "derived", content_hash: undefined, excerpt: "" })).success).toBe(true);
   });
+  it("rejects a derived kind with a document trust tier", () => {
+    const r = SourceRefSchema.safeParse(ref({ kind: "derived", trust_tier: "primary", content_hash: undefined }));
+    expect(r.success).toBe(false);
+    expect(r.error?.issues.map((i) => i.message)).toContain("a derived ref must have trust_tier derived");
+  });
   it("rejects unknown keys", () => expect(SourceRefSchema.safeParse({ ...ref(), surprise: 1 }).success).toBe(false));
   it("rejects an inverted bbox", () => expect(LocatorSchema.safeParse({ page: 1, bbox: [10, 10, 5, 20] }).success).toBe(false));
 });
