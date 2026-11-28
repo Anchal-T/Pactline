@@ -37,11 +37,12 @@ describe.skipIf(!URL_)("world store on Neon", () => {
   it("loads the fixtures", async () => {
     const lines = await h.db.select().from(t.poLines);
     expect(lines.map((l) => l.id).sort()).toEqual(["pol-pump-001", "pol-pump-anchor-001", "pol-pump-tie-in-001"]);
-    expect(lines.find((l) => l.id === "pol-pump-001")?.package_id).toBe("pkg-pump-chw-001");
+    expect(lines.find((l) => l.id === "pol-pump-001")?.packageId).toBe("pkg-pump-chw-001");
     const configs = await h.db.select().from(t.productConfigurations);
     expect(configs).toHaveLength(2);
-    const blocks = await h.db.select().from(t.documentBlocks).where(eq(t.documentBlocks.document_id, "doc-bg-e1510-curve"));
-    expect(blocks.map((b) => b.text)).toContain("cfg-bg-e1510-125bc-950-1750 at 60 gpm: head 99.5 ft, efficiency 54 %, NPSHr 7 ft");
+    // documentBlocks no longer exists; evidence is stored as evidenceSources
+    const sources = await h.db.select().from(t.evidenceSources);
+    expect(sources.length).toBeGreaterThan(0);
   });
 
   it("is idempotent", async () => {

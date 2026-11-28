@@ -308,8 +308,8 @@ export function runCounterfactualAnalysis(
 
   // Apply counterfactual overrides
   let counterfactualNetwork = network;
-  let resolvedCounterfactualDistributions = counterfactualOptions.distributions
-    ? [...counterfactualOptions.distributions]
+  let resolvedCounterfactualDistributions = counterfactualOptions.activityDistributions
+    ? [...counterfactualOptions.activityDistributions]
     : undefined;
 
   if (counterfactualOptions.activityOverrides && counterfactualOptions.activityOverrides.size > 0) {
@@ -357,7 +357,7 @@ export function runCounterfactualAnalysis(
     {
       ...counterfactualOptions,
       targetDate: sharedTargetDate,
-      distributions: resolvedCounterfactualDistributions,
+      activityDistributions: resolvedCounterfactualDistributions,
     },
     counterfactualScheduleOptions,
   );

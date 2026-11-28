@@ -108,6 +108,20 @@ export class TaskExecutor {
       // Execute worker
       const result = await worker.execute(agentTask);
 
+      // P1 #2: Re-check state drift AFTER execution — the world may have changed while running.
+      // If any pinned revision is now stale, record the output but mark STALE (not COMPLETED)
+      // so the operator knows the result was computed against an older snapshot.
+      const isDriftedAfter = await this.store.checkStateDrift(state_pin);
+      if (isDriftedAfter) {
+        await this.store.updateTask(task_id, "STALE", {
+          completed_at: this.clock.now().toISOString(),
+          output: result.output,
+          model_usage: result.model_usage,
+          error: "State pin drifted during task execution; result may be based on a stale snapshot",
+        });
+        return;
+      }
+
       // Store result
       await this.store.updateTask(task_id, "COMPLETED", {
         completed_at: this.clock.now().toISOString(),

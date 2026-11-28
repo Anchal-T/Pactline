@@ -177,6 +177,43 @@ export abstract class AgentWorker<TInput, TOutput> {
       throw new AgentBudgetError(task.task_id, "max_usd must be positive");
     }
   }
+
+  /**
+   * P2 #12: Check cumulative model usage against task budget.
+   * Subclasses should call this after each model invocation when a budget is set.
+   * Throws AgentBudgetError if the budget would be exceeded.
+   */
+  protected checkBudget(task: AgentTask<TInput>, usage: readonly ModelUsage[]): void {
+    const { budget } = task;
+    if (!budget) return;
+
+    const totalTokens = usage.reduce((sum, u) => sum + u.tokens_in + u.tokens_out, 0);
+    const totalUsd = usage.reduce((sum, u) => sum + u.usd, 0);
+
+    if (budget.max_tokens !== undefined && totalTokens > budget.max_tokens) {
+      throw new AgentBudgetError(
+        task.task_id,
+        `token budget exhausted: used ${totalTokens} of ${budget.max_tokens}`,
+      );
+    }
+    if (budget.max_usd !== undefined && totalUsd > budget.max_usd) {
+      throw new AgentBudgetError(
+        task.task_id,
+        `USD budget exhausted: used $${totalUsd.toFixed(4)} of $${budget.max_usd}`,
+      );
+    }
+  }
+
+  /**
+   * P2 #12: Get the per-call max_tokens to pass to the model, capped by remaining budget.
+   * Returns undefined if no budget is set.
+   */
+  protected remainingTokenBudget(task: AgentTask<TInput>, usageSoFar: readonly ModelUsage[]): number | undefined {
+    const max = task.budget?.max_tokens;
+    if (max === undefined) return undefined;
+    const used = usageSoFar.reduce((sum, u) => sum + u.tokens_in + u.tokens_out, 0);
+    return Math.max(0, max - used);
+  }
 }
 
 /**
