@@ -107,6 +107,7 @@ describeIfDb("WorldStore & Postgres Store Adapters Integration", () => {
     await db.execute(sql`
       TRUNCATE TABLE
         specialist_result_cache,
+        entity_record_history,
         specialist_tasks,
         action_receipts,
         event_series_versions,
@@ -263,6 +264,40 @@ describeIfDb("WorldStore & Postgres Store Adapters Integration", () => {
     const expiresAt = new Date("2026-12-04T00:00:00Z");
     await expect(world.engineering.upsertEvidenceSource({ ...evidence, retrievedAt, expiresAt }))
       .resolves.toMatchObject({ retrievedAt, expiresAt });
+  });
+
+  it("preserves every project revision in append-only history and exposes it through WorldStore", async () => {
+    await world.schedule.upsertProject({ id: ids.project, name: "Original project" });
+    await world.schedule.upsertProject({ id: ids.project, name: "Updated project" });
+
+    const history = await world.listRecordHistory("projects", { id: ids.project });
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({
+      version: 1,
+      operation: "UPDATE",
+      recordKey: { id: ids.project },
+      oldRecord: { name: "Original project" },
+      newRecord: { name: "Updated project" },
+    });
+    await expect(db.execute(sql`
+      UPDATE entity_record_history
+      SET operation = 'DELETE'
+      WHERE table_name = 'projects' AND record_key = '{"id":"proj-1"}'::jsonb
+    `)).rejects.toThrow(/append-only/);
+    await world.schedule.upsertProject({ id: ids.project, name: "Third project" });
+    await expect(world.listRecordHistory("projects", { id: ids.project }))
+      .resolves.toHaveLength(2);
+  });
+
+  it("supports project scoped reads across procurement and engineering entities", async () => {
+    await seedMinimalProcurement();
+    expect(await world.procurement.getVendor(ids.vendor)).toMatchObject({ name: "Vendor 1" });
+    expect(await world.procurement.listEquipmentPackages(ids.project)).toHaveLength(1);
+    expect(await world.procurement.listMaterialNeeds(ids.project)).toHaveLength(2);
+    expect(await world.procurement.listPurchaseOrders(ids.project)).toHaveLength(1);
+    expect(await world.procurement.listPoLines(ids.po)).toHaveLength(1);
+    expect(await world.engineering.listComplianceFindings()).toEqual([]);
+    expect(await world.engineering.listSupplierOffers(ids.project)).toEqual([]);
   });
 
   it("Invariant 2: DB CHECK blocks BINDING action_receipts without approval_id", async () => {

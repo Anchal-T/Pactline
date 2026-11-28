@@ -176,10 +176,43 @@ export class ScheduleRepo {
       .orderBy(asc(activities.activityId));
   }
 
+  async getActivity(scheduleRevisionId: ScheduleRevisionId, activityId: ActivityId) {
+    const [row] = await this.db
+      .select()
+      .from(activities)
+      .where(
+        and(
+          eq(activities.scheduleRevisionId, scheduleRevisionId),
+          eq(activities.activityId, activityId),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
   async listDependencies(scheduleRevisionId: ScheduleRevisionId) {
     return this.db
       .select()
       .from(dependencies)
       .where(eq(dependencies.scheduleRevisionId, scheduleRevisionId));
+  }
+
+  async getDependency(
+    scheduleRevisionId: ScheduleRevisionId,
+    predecessorId: ActivityId,
+    successorId: ActivityId,
+  ) {
+    const [row] = await this.db
+      .select()
+      .from(dependencies)
+      .where(
+        and(
+          eq(dependencies.scheduleRevisionId, scheduleRevisionId),
+          eq(dependencies.predecessorId, predecessorId),
+          eq(dependencies.successorId, successorId),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
   }
 }
