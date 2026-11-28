@@ -1,32 +1,20 @@
 // ExecutionGateway Tests — Phase 2E
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import {
-  ExecutionGateway,
-  MemoryActionReceiptStore,
-  type ActionProposal,
-  type Approval,
-  type ApprovalStore,
-  type PolicyConfig,
-  type RevisionPins,
-  type RevisionReader,
-} from "./execution-gateway.js";
+import { ExecutionGateway, MemoryGatewayStore, type ActionProposal, type Approval, type PolicyConfig } from "./execution-gateway.js";
 import { SandboxExternalAdapter } from "./sandbox-adapter.js";
 
 const VENDOR = "vendor@example.com";
 
 describe("ExecutionGateway", () => {
   let now: Date;
-  let receipts: MemoryActionReceiptStore;
-  let approvals: Map<string, Approval>;
-  let current: Map<string, RevisionPins>;
+  let store: MemoryGatewayStore;
   let adapter: SandboxExternalAdapter;
   let gateway: ExecutionGateway;
 
-  const approvalStore: ApprovalStore = { getValid: async (id, at) => { const a = approvals.get(id); return a && a.expires_at > at ? a : null; } };
-  const revisions: RevisionReader = { current: async (s) => current.get(s) ?? null };
-
   const make = (policy: Partial<PolicyConfig> = {}) =>
-    new ExecutionGateway({ receipts, approvals: approvalStore, revisions, adapter, policy: { allowedRecipients: [VENDOR], ...policy }, clock: () => now });
+    new ExecutionGateway({ store, adapter, policy: { allowedRecipients: [VENDOR], ...policy }, clock: () => now });
+
+  const row = (id: string | undefined) => store.receipts.get(id!)!;
 
   const proposal = (o: Partial<ActionProposal> = {}): ActionProposal => ({
     action_id: "act-001",
@@ -56,11 +44,16 @@ describe("ExecutionGateway", () => {
     ...o,
   });
 
+  /** Simulates a worker that claimed the receipt and died before recording the result. */
+  const strand = async (receiptId: string) => {
+    await store.transaction((tx) => tx.claim(receiptId, now, new Date(now.getTime() + 1000)));
+    now = new Date(now.getTime() + 2000);
+  };
+
   beforeEach(() => {
     now = new Date("2026-12-15T10:00:00Z");
-    receipts = new MemoryActionReceiptStore(() => now);
-    approvals = new Map();
-    current = new Map([["pol-118", { offer_rev: "2", plan_rev: "v1" }]]);
+    store = new MemoryGatewayStore(() => now);
+    store.revisions.set("pol-118", { offer_rev: "2", plan_rev: "v1" });
     adapter = new SandboxExternalAdapter();
     gateway = make();
   });
@@ -78,9 +71,7 @@ describe("ExecutionGateway", () => {
     });
 
     it("treats a binding action as binding even when no class is given", async () => {
-      const r = await gateway.authorize(binding({ approval_id: undefined }));
-      expect(r.authorized).toBe(false);
-      expect(r.error).toContain("approval");
+      expect((await gateway.authorize(binding({ approval_id: undefined }))).error).toContain("approval");
     });
 
     it("rejects unknown action types", async () => {
@@ -88,14 +79,13 @@ describe("ExecutionGateway", () => {
     });
 
     it("stores the trusted class on the receipt", async () => {
-      approvals.set("appr-001", approval());
-      const r = await gateway.enqueue(binding());
-      expect(receipts.rows.get(r.receipt_id!)?.action_class).toBe("BINDING");
+      store.approvals.set("appr-001", approval());
+      expect(row((await gateway.enqueue(binding())).receipt_id).action_class).toBe("BINDING");
     });
   });
 
   describe("approval matching", () => {
-    beforeEach(() => approvals.set("appr-001", approval()));
+    beforeEach(() => store.approvals.set("appr-001", approval()));
 
     it("authorizes a binding action with a matching approval", async () => {
       expect((await gateway.authorize(binding())).authorized).toBe(true);
@@ -107,34 +97,100 @@ describe("ExecutionGateway", () => {
     });
 
     it("rejects an approval for another subject", async () => {
-      current.set("pol-200", { offer_rev: "2", plan_rev: "v1" });
+      store.revisions.set("pol-200", { offer_rev: "2", plan_rev: "v1" });
       expect((await gateway.authorize(binding({ subject_id: "pol-200" }))).error).toContain("not pol-200");
     });
 
     it("rejects an approval for another operation", async () => {
-      approvals.set("appr-001", approval({ scope: "expedite_po" }));
+      store.approvals.set("appr-001", approval({ scope: "expedite_po" }));
       expect((await gateway.authorize(binding())).error).toContain("scope");
     });
 
     it("rejects an approval whose pinned revision has moved", async () => {
-      current.set("pol-118", { offer_rev: "3", plan_rev: "v1" });
+      store.revisions.set("pol-118", { offer_rev: "3", plan_rev: "v1" });
       expect((await gateway.authorize(binding())).error).toContain("offer_rev");
     });
 
     it("takes the required role from the rule, not the proposal", async () => {
-      approvals.set("appr-002", approval({ approval_id: "appr-002", scope: "substitute_product" }));
+      store.approvals.set("appr-002", approval({ approval_id: "appr-002", scope: "substitute_product" }));
       const r = await gateway.authorize(binding({ action_type: "substitute_product", approval_id: "appr-002" }));
       expect(r.authorized).toBe(false);
       expect(r.error).toContain("ENGINEER_OF_RECORD");
     });
 
     it("rechecks the approval when a receipt already exists", async () => {
-      const first = await gateway.enqueue(binding());
-      expect(first.authorized).toBe(true);
+      expect((await gateway.enqueue(binding())).authorized).toBe(true);
       now = new Date("2026-12-15T13:00:00Z");
-      const retry = await gateway.authorize(binding());
-      expect(retry.authorized).toBe(false);
-      expect(retry.error).toContain("expired");
+      expect((await gateway.authorize(binding())).error).toContain("expired");
+    });
+  });
+
+  describe("approval in the enqueue transaction and at dispatch", () => {
+    beforeEach(() => store.approvals.set("appr-001", approval()));
+
+    it("does not queue against a revision committed while the enqueue waited", async () => {
+      // A revision writer holds the lock first; the enqueue's checks and insert run after it commits.
+      let release!: () => void;
+      const writer = store.transaction(
+        () =>
+          new Promise<void>((resolve) => {
+            release = () => {
+              store.revisions.set("pol-118", { offer_rev: "3", plan_rev: "v1" });
+              resolve();
+            };
+          }),
+      );
+      const pending = gateway.enqueue(binding());
+      await Promise.resolve();
+      release();
+      await writer;
+      const r = await pending;
+      expect(r.authorized).toBe(false);
+      expect(r.error).toContain("offer_rev");
+      expect(store.receipts.size).toBe(0);
+    });
+
+    it("rolls the insert back when the transaction throws", async () => {
+      await expect(
+        store.transaction(async (tx) => {
+          await tx.insertReceipt({ ...row(undefined), idempotency_key: "k" } as never);
+          throw new Error("boom");
+        }),
+      ).rejects.toThrow("boom");
+      expect(store.receipts.size).toBe(0);
+    });
+
+    it("refuses to dispatch after the approval expires", async () => {
+      const r = await gateway.enqueue(binding());
+      now = new Date("2026-12-15T12:30:00Z");
+      const execute = vi.spyOn(adapter, "execute");
+      await gateway.tickOutbox();
+      expect(execute).not.toHaveBeenCalled();
+      expect(row(r.receipt_id)).toMatchObject({ status: "FAILED" });
+      expect(row(r.receipt_id).error).toContain("Approval no longer valid");
+    });
+
+    it("refuses to dispatch after a pinned revision changes", async () => {
+      const r = await gateway.enqueue(binding());
+      await store.setRevisions("pol-118", { offer_rev: "3", plan_rev: "v1" });
+      await gateway.tickOutbox();
+      expect(adapter.getOperationCount()).toBe(0);
+      expect(row(r.receipt_id).error).toContain("offer_rev");
+    });
+
+    it("re-verifies a tainted outbound write at dispatch", async () => {
+      store.approvals.set("appr-003", approval({ approval_id: "appr-003", scope: "send_vendor_email" }));
+      const r = await gateway.enqueue(email({ tainted_arguments: ["body"], approval_id: "appr-003" }));
+      store.approvals.delete("appr-003");
+      await gateway.tickOutbox();
+      expect(adapter.getOperationCount()).toBe(0);
+      expect(row(r.receipt_id).status).toBe("FAILED");
+    });
+
+    it("dispatches a binding action whose approval still holds", async () => {
+      const r = await gateway.enqueue(binding());
+      await gateway.tickOutbox();
+      expect(row(r.receipt_id).status).toBe("CONFIRMED");
     });
   });
 
@@ -152,7 +208,7 @@ describe("ExecutionGateway", () => {
     });
 
     it("allows tainted arguments with a verified approval for that send", async () => {
-      approvals.set("appr-003", approval({ approval_id: "appr-003", scope: "send_vendor_email" }));
+      store.approvals.set("appr-003", approval({ approval_id: "appr-003", scope: "send_vendor_email" }));
       expect((await gateway.authorize(email({ tainted_arguments: ["body"], approval_id: "appr-003" }))).authorized).toBe(true);
     });
   });
@@ -180,10 +236,9 @@ describe("ExecutionGateway", () => {
 
     it("keeps the checked recipient and template on the receipt and in the adapter call", async () => {
       const r = await gateway.enqueue(email());
-      const row = receipts.rows.get(r.receipt_id!)!;
-      expect([row.recipient, row.template_id]).toEqual([VENDOR, "vendor_update"]);
+      expect([row(r.receipt_id).recipient, row(r.receipt_id).template_id]).toEqual([VENDOR, "vendor_update"]);
       await gateway.tickOutbox();
-      const op = adapter.getOperation(row.idempotency_key)!;
+      const op = adapter.getOperation(row(r.receipt_id).idempotency_key)!;
       expect([op.recipient, op.template_id]).toEqual([VENDOR, "vendor_update"]);
     });
 
@@ -195,6 +250,12 @@ describe("ExecutionGateway", () => {
       expect(second.error).toContain("Rate limit");
       now = new Date("2026-12-15T11:00:01Z");
       expect((await g.enqueue(email({ action_id: "a3" }))).authorized).toBe(true);
+    });
+
+    it("holds the limit when distinct follow-ups are enqueued concurrently", async () => {
+      const g = make({ externalWriteRateLimit: 1 });
+      const results = await Promise.all(["a1", "a2", "a3"].map((id) => g.enqueue(email({ action_id: id }))));
+      expect(results.filter((r) => r.authorized)).toHaveLength(1);
     });
 
     it("does not spend the allowance on a retry of the same action", async () => {
@@ -238,82 +299,99 @@ describe("ExecutionGateway", () => {
       await gateway.tickOutbox();
       expect((await gateway.enqueue(email())).error).toContain("already confirmed");
     });
+
+    it("creates one receipt for concurrent enqueues of the same action", async () => {
+      const [a, b] = await Promise.all([gateway.enqueue(email()), gateway.enqueue(email())]);
+      expect(a.receipt_id).toBe(b.receipt_id);
+      expect(store.receipts.size).toBe(1);
+    });
   });
 
   describe("outbox processing", () => {
     it("confirms a pending receipt with its external id", async () => {
       const r = await gateway.enqueue(proposal());
       await gateway.tickOutbox();
-      const row = receipts.rows.get(r.receipt_id!)!;
-      expect(row.status).toBe("CONFIRMED");
-      expect(row.external_id).toMatch(/^ext-/);
+      expect(row(r.receipt_id).status).toBe("CONFIRMED");
+      expect(row(r.receipt_id).external_id).toMatch(/^ext-/);
     });
 
     it("marks a known failure FAILED", async () => {
       const r = await gateway.enqueue(proposal());
       adapter.setFaultConfig({ fail: true, failureMessage: "Network error" });
       await gateway.tickOutbox();
-      expect(receipts.rows.get(r.receipt_id!)).toMatchObject({ status: "FAILED", error: "Network error" });
+      expect(row(r.receipt_id)).toMatchObject({ status: "FAILED", error: "Network error" });
     });
 
-    it("fails a receipt after max retries", async () => {
+    it("fails a receipt once its attempts exceed the budget", async () => {
       const g = make({ maxRetries: 1 });
       const r = await g.enqueue(proposal());
-      const row = receipts.rows.get(r.receipt_id!)!;
-      receipts.rows.set(row.receipt_id, { ...row, retry_count: 1 });
+      store.receipts.set(r.receipt_id!, { ...row(r.receipt_id), retry_count: 1 });
       await g.tickOutbox();
-      expect(receipts.rows.get(r.receipt_id!)?.error).toBe("Max retries exceeded");
+      expect(row(r.receipt_id).error).toBe("Max retries exceeded");
+      expect(adapter.getOperationCount()).toBe(0);
+    });
+
+    it("executes a receipt once when workers overlap", async () => {
+      const r = await gateway.enqueue(email());
+      const execute = vi.spyOn(adapter, "execute");
+      const worker2 = make();
+      await Promise.all([gateway.tickOutbox(), worker2.tickOutbox(), gateway.tickOutbox()]);
+      expect(execute).toHaveBeenCalledTimes(1);
+      expect(adapter.getOperationCount(row(r.receipt_id).idempotency_key)).toBe(1);
+      expect(row(r.receipt_id).status).toBe("CONFIRMED");
+    });
+
+    it("skips a receipt another worker holds under a live lease", async () => {
+      const r = await gateway.enqueue(email());
+      await store.transaction((tx) => tx.claim(r.receipt_id!, now, new Date(now.getTime() + 60_000)));
+      const execute = vi.spyOn(adapter, "execute");
+      await gateway.tickOutbox();
+      expect(execute).not.toHaveBeenCalled();
+      expect(await store.transaction((tx) => tx.claim(r.receipt_id!, now, now))).toBeNull();
     });
   });
 
   describe("crash recovery (scenario 7)", () => {
-    it("reconciles a stranded DISPATCHING receipt instead of writing again", async () => {
+    it("reconciles a stranded receipt instead of writing again", async () => {
       const r = await gateway.enqueue(email());
-      // Worker 1 writes, then dies before recording the result.
-      adapter.setFaultConfig({ crashAfterWrite: true });
-      const reconcile = vi.spyOn(adapter, "reconcile").mockRejectedValueOnce(new Error("worker died"));
-      const row = receipts.rows.get(r.receipt_id!)!;
-      await receipts.markDispatching(row.receipt_id, new Date(now.getTime() + 300_000));
-      await adapter.execute({ ...row, status: "DISPATCHING" }).catch(() => undefined);
+      // Worker 1 claims, writes, then dies before recording the result.
+      await store.transaction((tx) => tx.claim(r.receipt_id!, now, new Date(now.getTime() + 300_000)));
+      await adapter.execute(row(r.receipt_id));
       expect(adapter.getOperationCount()).toBe(1);
-      reconcile.mockRestore();
 
       // Lease expires; worker 2 picks the receipt up.
-      adapter.setFaultConfig({});
       now = new Date(now.getTime() + 301_000);
       const execute = vi.spyOn(adapter, "execute");
       await gateway.tickOutbox();
 
       expect(execute).not.toHaveBeenCalled();
       expect(adapter.getOperationCount()).toBe(1);
-      expect(receipts.rows.get(r.receipt_id!)?.status).toBe("CONFIRMED");
+      expect(row(r.receipt_id).status).toBe("CONFIRMED");
     });
 
     it("retries a stranded receipt only when reconcile proves nothing was written", async () => {
       const r = await gateway.enqueue(email());
-      await receipts.markDispatching(r.receipt_id!, new Date(now.getTime() + 1000));
-      now = new Date(now.getTime() + 2000);
+      await strand(r.receipt_id!);
       await gateway.tickOutbox();
       expect(adapter.getOperationCount()).toBe(1);
-      expect(receipts.rows.get(r.receipt_id!)?.status).toBe("CONFIRMED");
+      expect(row(r.receipt_id).status).toBe("CONFIRMED");
     });
 
     it("escalates a stranded receipt as UNCERTAIN when the external state cannot be read", async () => {
       const r = await gateway.enqueue(email());
-      await receipts.markDispatching(r.receipt_id!, new Date(now.getTime() + 1000));
-      now = new Date(now.getTime() + 2000);
+      await strand(r.receipt_id!);
       adapter.setFaultConfig({ reconcileFails: true });
       const execute = vi.spyOn(adapter, "execute");
       await gateway.tickOutbox();
       expect(execute).not.toHaveBeenCalled();
-      expect(receipts.rows.get(r.receipt_id!)?.status).toBe("UNCERTAIN");
+      expect(row(r.receipt_id).status).toBe("UNCERTAIN");
     });
 
     it("confirms through reconcile when the adapter crashes after writing in the same worker", async () => {
       const r = await gateway.enqueue(email());
       adapter.setFaultConfig({ crashAfterWrite: true });
       await gateway.tickOutbox();
-      expect(receipts.rows.get(r.receipt_id!)?.status).toBe("CONFIRMED");
+      expect(row(r.receipt_id).status).toBe("CONFIRMED");
       expect(adapter.getOperationCount()).toBe(1);
     });
   });

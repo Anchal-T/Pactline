@@ -46,7 +46,8 @@ interface SandboxOperation {
  * Supports fault injection for crash recovery testing.
  */
 export class SandboxExternalAdapter implements ExternalAdapter {
-  private operations: Map<string, SandboxOperation> = new Map();
+  /** Every execute that reached the external system, duplicates included, so tests can count writes. */
+  private executions: SandboxOperation[] = [];
   private nextExternalId = 1;
 
   constructor(private faultConfig: FaultConfig = {}) {}
@@ -92,7 +93,7 @@ export class SandboxExternalAdapter implements ExternalAdapter {
       executed_at: new Date(),
     };
 
-    this.operations.set(action.idempotency_key, operation);
+    this.executions.push(operation);
 
     // Log the simulated operation
     // Simulate crash after write (for testing reconciliation)
@@ -109,7 +110,7 @@ export class SandboxExternalAdapter implements ExternalAdapter {
   }
 
   async reconcile(idempotencyKey: string): Promise<string | null> {
-    const operation = this.operations.get(idempotencyKey);
+    const operation = this.getOperation(idempotencyKey);
 
     if (operation) {
       return operation.external_id;
@@ -128,28 +129,28 @@ export class SandboxExternalAdapter implements ExternalAdapter {
    * Check if an operation was actually executed (for testing)
    */
   hasOperation(idempotencyKey: string): boolean {
-    return this.operations.has(idempotencyKey);
+    return this.executions.some((o) => o.idempotency_key === idempotencyKey);
   }
 
   /**
    * Get operation details (for testing)
    */
   getOperation(idempotencyKey: string): SandboxOperation | undefined {
-    return this.operations.get(idempotencyKey);
+    return this.executions.find((o) => o.idempotency_key === idempotencyKey);
   }
 
   /**
-   * Get count of executed operations (for testing)
+   * Number of writes that reached the external system, optionally for one key (for testing)
    */
-  getOperationCount(): number {
-    return this.operations.size;
+  getOperationCount(idempotencyKey?: string): number {
+    return idempotencyKey === undefined ? this.executions.length : this.executions.filter((o) => o.idempotency_key === idempotencyKey).length;
   }
 
   /**
    * Reset the adapter state (for testing)
    */
   reset(): void {
-    this.operations.clear();
+    this.executions = [];
     this.nextExternalId = 1;
   }
 
