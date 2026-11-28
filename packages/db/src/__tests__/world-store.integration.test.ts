@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
+import pg from "pg";
 import { createIdempotentRunner, idempotencyKey } from "@pactline/domain/server";
 import {
   asId,
@@ -7,6 +8,7 @@ import {
   type ActivityId,
   type AllocationId,
   type ApprovalId,
+  type EvidenceSourceId,
   type IncidentId,
   type InspectionId,
   type MaterialNeedId,
@@ -37,10 +39,17 @@ import {
 import { AllocationExceededError } from "../stores/procurement-repo.js";
 import { seedDatabase } from "../../../../scripts/seed-db.js";
 
-const TEST_URL =
-  process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
+const TEST_URL = process.env.TEST_DATABASE_URL;
 
 const describeIfDb = TEST_URL ? describe : describe.skip;
+
+function databaseTarget(connectionString: string) {
+  const { host, database, port } = new pg.Client({ connectionString });
+  const hostname = host.startsWith("/")
+    ? host
+    : host.toLowerCase().replace(/-pooler(?=\.)/, "").replace(/\.$/, "");
+  return JSON.stringify([hostname, port, database]);
+}
 
 const ids = {
   project: asId<ProjectId>("proj-1"),
@@ -77,6 +86,12 @@ describeIfDb("WorldStore & Postgres Store Adapters Integration", () => {
   let world: WorldStore;
 
   beforeAll(async () => {
+    const testTarget = databaseTarget(TEST_URL!);
+    for (const appUrl of [process.env.DATABASE_URL, process.env.DATABASE_URL_UNPOOLED]) {
+      if (appUrl && databaseTarget(appUrl) === testTarget) {
+        throw new Error("TEST_DATABASE_URL must target a dedicated test database");
+      }
+    }
     await applyMigrations(TEST_URL!);
     const conn = createDb(TEST_URL!);
     db = conn.db;
@@ -118,18 +133,12 @@ describeIfDb("WorldStore & Postgres Store Adapters Integration", () => {
         purchase_orders,
         material_needs,
         equipment_packages,
-        vendors
-      CASCADE
+        vendors,
+        dependencies,
+        activities,
+        schedule_revisions,
+        projects
     `);
-    // Clean non-baseline schedule_revisions first, then baseline via session_replication_role
-    // or delete in a helper; baseline trigger blocks DELETE unless we drop/bypass in test cleanup.
-    await db.execute(sql`ALTER TABLE schedule_revisions DISABLE TRIGGER trg_schedule_revisions_baseline_immutable`);
-    await db.execute(sql`ALTER TABLE activities DISABLE TRIGGER trg_activities_baseline_immutable`);
-    await db.execute(sql`ALTER TABLE dependencies DISABLE TRIGGER trg_dependencies_baseline_immutable`);
-    await db.execute(sql`TRUNCATE TABLE dependencies, activities, schedule_revisions, projects CASCADE`);
-    await db.execute(sql`ALTER TABLE schedule_revisions ENABLE TRIGGER trg_schedule_revisions_baseline_immutable`);
-    await db.execute(sql`ALTER TABLE activities ENABLE TRIGGER trg_activities_baseline_immutable`);
-    await db.execute(sql`ALTER TABLE dependencies ENABLE TRIGGER trg_dependencies_baseline_immutable`);
   }
 
   beforeEach(async () => {
@@ -214,6 +223,46 @@ describeIfDb("WorldStore & Postgres Store Adapters Integration", () => {
         VALUES ('alloc-raw', 'pol-1', 'need-2', 1, 'ACTIVE')
       `),
     ).rejects.toThrow();
+  });
+
+  it("rejects PO line reductions below active allocations", async () => {
+    await seedMinimalProcurement();
+    await world.procurement.allocateFulfillment({
+      id: ids.allocA,
+      poLineId: ids.pol,
+      materialNeedId: ids.need1,
+      quantity: 2,
+    });
+
+    const line = {
+      id: ids.pol,
+      poId: ids.po,
+      packageId: ids.pkg,
+      contractualArrivalDate: "2026-12-28",
+      status: "OPEN",
+    };
+    await expect(world.procurement.upsertPoLine({ ...line, quantity: 1 }))
+      .rejects.toThrow(/exceed PO line/);
+    expect((await world.procurement.getPoLineWithAllocations(ids.pol))?.line.quantity).toBe("2.000");
+    await expect(world.procurement.upsertPoLine({ ...line, quantity: 3 }))
+      .resolves.toMatchObject({ quantity: "3.000" });
+  });
+
+  it("refreshes the retrieval and expiry timestamps when evidence is upserted", async () => {
+    const evidence = {
+      id: asId<EvidenceSourceId>("curve-source"),
+      kind: "MANUFACTURER_CURVE",
+      trustTier: "primary",
+    };
+    await world.engineering.upsertEvidenceSource({
+      ...evidence,
+      retrievedAt: new Date("2026-12-01T00:00:00Z"),
+      expiresAt: new Date("2026-12-02T00:00:00Z"),
+    });
+    const retrievedAt = new Date("2026-12-03T00:00:00Z");
+    const expiresAt = new Date("2026-12-04T00:00:00Z");
+    await expect(world.engineering.upsertEvidenceSource({ ...evidence, retrievedAt, expiresAt }))
+      .resolves.toMatchObject({ retrievedAt, expiresAt });
   });
 
   it("Invariant 2: DB CHECK blocks BINDING action_receipts without approval_id", async () => {
@@ -350,6 +399,61 @@ describeIfDb("WorldStore & Postgres Store Adapters Integration", () => {
     expect(after).toBeNull();
   });
 
+  it("updates config pins and invalidates affected grants when canonical specs change", async () => {
+    await seedMinimalProcurement();
+    const config = {
+      id: ids.cfg,
+      manufacturer: "Demo",
+      model: "M1",
+      equipmentType: "CENTRIFUGAL_PUMP",
+      specs: { head: 80 },
+      sourceRefs: ["curve-source"],
+      trustTier: "primary",
+    };
+    await world.engineering.upsertProductConfiguration(config);
+    await world.incidents.upsertSubjectRevisions({
+      subjectId: ids.pol,
+      subjectType: "POLine",
+      pins: { config_rev: "cfg-1@1", plan_rev: "plan-1" },
+    });
+    await world.incidents.upsertSubjectRevisions({
+      subjectId: ids.pkg,
+      subjectType: "EquipmentPackage",
+      pins: { config_rev: "cfg-other@1" },
+    });
+    const now = new Date("2026-12-15T10:00:00Z");
+    for (const [id, subjectId, pins] of [
+      [ids.appr, ids.pol, { config_rev: "cfg-1@1", plan_rev: "plan-1" }],
+      [asId<ApprovalId>("unrelated-approval"), ids.pkg, { config_rev: "cfg-other@1" }],
+    ] as const) {
+      await world.incidents.createApproval({
+        id, subjectId, pins,
+        scope: "substitute_product",
+        grantedBy: "engineer-1",
+        grantedRole: "ENGINEER_OF_RECORD",
+        outcome: "GRANTED",
+        grantedAt: new Date("2026-12-15T09:00:00Z"),
+        expiresAt: new Date("2026-12-16T09:00:00Z"),
+      });
+    }
+    const store = new PostgresGatewayStore(db, () => now);
+    const readApproval = (id: string) => store.transaction((tx) => tx.getValidApproval(id, now));
+
+    await world.engineering.upsertProductConfiguration(config);
+    await expect(readApproval(ids.appr)).resolves.toMatchObject({ approval_id: ids.appr });
+    await expect(world.engineering.upsertProductConfiguration({ ...config, specs: { head: 70 } }))
+      .rejects.toThrow(/requires a revision above/);
+    await expect(readApproval(ids.appr)).resolves.toMatchObject({ approval_id: ids.appr });
+
+    await world.engineering.upsertProductConfiguration({ ...config, revision: 2, specs: { head: 70 } });
+    await store.transaction(async (tx) => {
+      expect(await tx.currentRevisions(ids.cfg)).toEqual({ config_rev: "2" });
+      expect(await tx.currentRevisions(ids.pol)).toEqual({ config_rev: "cfg-1@2", plan_rev: "plan-1" });
+      expect(await tx.getValidApproval(ids.appr, now)).toBeNull();
+    });
+    await expect(readApproval("unrelated-approval")).resolves.toMatchObject({ approval_id: "unrelated-approval" });
+  });
+
   it("Invariant 5, 8 & Scenario 9: partial acceptance blocks closure; full acceptance allows CLOSED", async () => {
     await seedMinimalProcurement();
     await world.incidents.createIncident({
@@ -386,6 +490,35 @@ describeIfDb("WorldStore & Postgres Store Adapters Integration", () => {
       poLineId: ids.pol,
       result: "PASS",
     });
+    const alternateLine = asId<POLineId>("alternate-line");
+    await world.procurement.upsertPoLine({
+      id: alternateLine,
+      poId: ids.po,
+      packageId: ids.pkg,
+      quantity: 1,
+      contractualArrivalDate: "2026-12-28",
+      status: "OPEN",
+    });
+
+    const wrongNeed = {
+      acceptanceId: ids.acc1,
+      inspectionId: ids.insp,
+      poLineId: ids.pol,
+      materialNeedId: ids.need2,
+      acceptedQty: 2,
+      disposition: "ACCEPTED" as const,
+      authorizedBy: "site-eng-1",
+      acceptedAt: new Date("2026-12-28T12:00:00Z"),
+      evidenceRef: "sig://acc-1",
+    };
+    await expect(world.incidents.recordAcceptanceForIncident(ids.inc2, wrongNeed))
+      .rejects.toThrow(/material need does not match/);
+    await expect(world.incidents.recordAcceptanceForIncident(ids.inc2, {
+      ...wrongNeed,
+      materialNeedId: ids.need1,
+      poLineId: alternateLine,
+    })).rejects.toThrow(/Inspection does not verify PO line/);
+    expect((await world.incidents.getIncident(ids.inc2))?.acceptedQty).toBe("0.000");
 
     // Partial acceptance: 1 of 2
     await world.incidents.recordAcceptanceForIncident(ids.inc2, {
@@ -408,18 +541,40 @@ describeIfDb("WorldStore & Postgres Store Adapters Integration", () => {
     expect(partialClose.success).toBe(false);
     expect(partialClose.error).toContain("accepted_qty >= required_qty");
 
-    // Second acceptance: 1 more (total 2/2)
-    await world.incidents.recordAcceptanceForIncident(ids.inc2, {
+    const alternateReceipt = asId<ReceiptId>("alternate-receipt");
+    const alternateInspection = asId<InspectionId>("alternate-inspection");
+    await world.procurement.recordReceipt({
+      id: alternateReceipt,
+      poLineId: alternateLine,
+      shippedQty: 1,
+      receivedQty: 1,
+    });
+    await world.procurement.recordInspection({
+      id: alternateInspection,
+      receiptId: alternateReceipt,
+      poLineId: alternateLine,
+      result: "PASS",
+    });
+    const secondAcceptance = {
       acceptanceId: ids.acc2,
-      inspectionId: ids.insp,
-      poLineId: ids.pol,
+      inspectionId: alternateInspection,
+      poLineId: alternateLine,
       materialNeedId: ids.need1,
       acceptedQty: 1,
-      disposition: "ACCEPTED",
+      disposition: "ACCEPTED" as const,
       authorizedBy: "site-eng-1",
       acceptedAt: new Date("2026-12-28T14:00:00Z"),
       evidenceRef: "sig://acc-2",
+    };
+    await expect(world.incidents.recordAcceptanceForIncident(ids.inc2, secondAcceptance))
+      .rejects.toThrow(/not allocated to the need/);
+    await world.procurement.allocateFulfillment({
+      id: ids.allocA,
+      poLineId: alternateLine,
+      materialNeedId: ids.need1,
+      quantity: 1,
     });
+    await world.incidents.recordAcceptanceForIncident(ids.inc2, secondAcceptance);
 
     const fullClose = await world.incidents.transitionIncident(ids.inc2, {
       to: "CLOSED",
@@ -452,15 +607,35 @@ describeIfDb("WorldStore & Postgres Store Adapters Integration", () => {
           type: "FABRICATION",
           durationWorkdays: 3,
         },
+        {
+          activityId: asId<ActivityId>("standalone"),
+          name: "Inspect",
+          type: "INSPECTION",
+          durationWorkdays: 1,
+        },
       ],
       dependencies: [
         { predecessorId: ids.act1, successorId: ids.act2, type: "FS" },
       ],
     });
+    const current = asId<ScheduleRevisionId>("sched-current");
+    await world.schedule.createScheduleRevision({
+      id: current,
+      projectId: ids.project,
+      revision: 2,
+      kind: "CURRENT",
+      startDate: "2026-11-30",
+      calendar: { working_weekdays: ["MONDAY"] },
+      activities: [
+        { activityId: ids.act1, name: "Design", type: "DESIGN", durationWorkdays: 2 },
+        { activityId: ids.act2, name: "Build", type: "FABRICATION", durationWorkdays: 3 },
+      ],
+      dependencies: [],
+    });
 
     await expect(
-      db.execute(sql`UPDATE schedule_revisions SET revision = 2 WHERE id = 'sched-base'`),
-    ).rejects.toThrow();
+      db.execute(sql`UPDATE schedule_revisions SET revision = 3 WHERE id = 'sched-base'`),
+    ).rejects.toThrow(/immutable/);
     await expect(
       db.execute(sql`DELETE FROM schedule_revisions WHERE id = 'sched-base'`),
     ).rejects.toThrow();
@@ -476,6 +651,32 @@ describeIfDb("WorldStore & Postgres Store Adapters Integration", () => {
         VALUES ('sched-base', 'act-late', 'Late add', 'DESIGN', 1)
       `),
     ).rejects.toThrow();
+    await expect(db.execute(sql`
+      UPDATE activities SET schedule_revision_id = ${current}
+      WHERE schedule_revision_id = ${ids.sched} AND activity_id = 'standalone'
+    `)).rejects.toThrow(/belonging to BASELINE/);
+    await expect(db.execute(sql`
+      UPDATE dependencies SET schedule_revision_id = ${current}
+      WHERE schedule_revision_id = ${ids.sched}
+    `)).rejects.toThrow(/belonging to BASELINE/);
+  });
+
+  it("selects the latest CURRENT schedule by revision", async () => {
+    await world.schedule.upsertProject({ id: ids.project, name: "Test Project" });
+    for (const revision of [1, 3, 2]) {
+      await world.schedule.createScheduleRevision({
+        id: asId<ScheduleRevisionId>(`schedule-${revision}`),
+        projectId: ids.project,
+        revision,
+        kind: "CURRENT",
+        startDate: "2026-11-30",
+        calendar: { working_weekdays: ["MONDAY"] },
+        activities: [],
+        dependencies: [],
+      });
+    }
+    await expect(world.schedule.getScheduleRevision(ids.project, "CURRENT"))
+      .resolves.toMatchObject({ id: "schedule-3", revision: 3 });
   });
 
   it("waiver closure: attachWaiver stores the grant a CLOSED transition can use", async () => {
@@ -493,33 +694,56 @@ describeIfDb("WorldStore & Postgres Store Adapters Integration", () => {
       nextReviewAt: new Date("2026-12-29T12:00:00Z"),
       requiredQty: 2,
     });
-    await world.incidents.createApproval({
-      id: asId<ApprovalId>("appr-waiver"),
+    const grant = {
       incidentId: asId<IncidentId>("inc-waiver"),
       scope: "accept_waiver",
       subjectId: asId<POLineId>("pol-1"),
       grantedBy: "pm-1",
-      grantedRole: "PROJECT_MANAGER",
-      outcome: "GRANTED",
+      grantedRole: "PROJECT_MANAGER" as const,
+      outcome: "GRANTED" as const,
       grantedAt: new Date("2026-12-15T09:00:00Z"),
       expiresAt: new Date("2026-12-20T00:00:00Z"),
-    });
-
-    const waived = await world.incidents.attachWaiver({
-      incidentId: asId<IncidentId>("inc-waiver"),
-      waiverApprovalId: asId<ApprovalId>("appr-waiver"),
+    };
+    const waiver = {
+      incidentId: grant.incidentId,
       scheduleDisposition: "Need date moved and accepted",
       expectedVersion: 1,
       now: new Date("2026-12-15T10:00:00Z"),
+    };
+    const close = () => world.incidents.transitionIncident(
+      grant.incidentId,
+      { to: "CLOSED", actor: "op-1", reason: "Waiver accepted" },
+      waiver.now,
+    );
+
+    for (const invalidGrant of [
+      { id: asId<ApprovalId>("appr-po"), scope: "update_po" },
+      { id: asId<ApprovalId>("appr-wrong-role"), grantedRole: "PROCUREMENT_MANAGER" as const },
+    ]) {
+      await world.incidents.createApproval({ ...grant, ...invalidGrant });
+      await expect(world.incidents.attachWaiver({ ...waiver, waiverApprovalId: invalidGrant.id }))
+        .rejects.toThrow(/live grant/);
+      await db.execute(sql`
+        UPDATE incidents
+        SET waiver_approval_id = ${invalidGrant.id}, schedule_disposition = ${waiver.scheduleDisposition}
+        WHERE id = ${grant.incidentId}
+      `);
+      await expect(close()).resolves.toMatchObject({ success: false });
+    }
+
+    await world.incidents.createApproval({
+      ...grant,
+      id: asId<ApprovalId>("appr-waiver"),
+    });
+
+    const waived = await world.incidents.attachWaiver({
+      ...waiver,
+      waiverApprovalId: asId<ApprovalId>("appr-waiver"),
     });
     expect(waived.waiverApprovalId).toBe("appr-waiver");
     expect(waived.scheduleDisposition).toBe("Need date moved and accepted");
 
-    const closed = await world.incidents.transitionIncident(
-      asId<IncidentId>("inc-waiver"),
-      { to: "CLOSED", actor: "op-1", reason: "Waiver accepted" },
-      new Date("2026-12-15T10:00:00Z"),
-    );
+    const closed = await close();
     expect(closed.success).toBe(true);
     expect(closed.to_status).toBe("CLOSED");
   });

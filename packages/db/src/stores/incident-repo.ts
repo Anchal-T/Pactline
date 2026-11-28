@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull, lte, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNull, lte, ne, sql } from "drizzle-orm";
 import {
   IncidentStateMachine,
   type AcceptanceId,
@@ -27,7 +27,14 @@ import {
   recoveryPlans,
   subjectRevisions,
 } from "../schema/incidents.js";
-import { acceptances } from "../schema/procurement.js";
+import {
+  acceptances,
+  fulfillmentAllocations,
+  inspections,
+  poLines,
+  purchaseOrders,
+  receipts,
+} from "../schema/procurement.js";
 import type { ApprovalRole, RevisionPins } from "./gateway-store.js";
 
 export interface CreateIncidentInput {
@@ -82,6 +89,30 @@ export class OptimisticLockError extends Error {
 }
 
 type DrizzleTx = Parameters<Parameters<DB["transaction"]>[0]>[0];
+
+async function getValidWaiver(
+  tx: DrizzleTx,
+  incidentId: IncidentId,
+  approvalId: string,
+  now: Date,
+) {
+  const [waiver] = await tx
+    .select()
+    .from(approvals)
+    .where(
+      and(
+        eq(approvals.id, approvalId),
+        eq(approvals.incidentId, incidentId),
+        eq(approvals.scope, "accept_waiver"),
+        eq(approvals.grantedRole, "PROJECT_MANAGER"),
+        eq(approvals.outcome, "GRANTED"),
+        isNull(approvals.invalidatedAt),
+        gt(approvals.expiresAt, now),
+      ),
+    )
+    .for("share");
+  return waiver;
+}
 
 function subjectRevisionValues(
   input: { subjectId: RevisionSubjectId; subjectType: string; pins: RevisionPins },
@@ -294,10 +325,9 @@ export class IncidentRepo {
         activeApprovals.length > 0 && !hasValidApproval;
 
       const hasValidWaiver =
+        request.to === "CLOSED" &&
         row.waiverApprovalId !== null &&
-        activeApprovals.some(
-          (a) => a.id === row.waiverApprovalId && a.expiresAt > at,
-        );
+        Boolean(await getValidWaiver(tx, incidentId, row.waiverApprovalId, at));
 
       const state: IncidentState = {
         id: row.id,
@@ -385,6 +415,52 @@ export class IncidentRepo {
     },
   ) {
     return this.db.transaction(async (tx) => {
+      const [incident] = await tx
+        .select()
+        .from(incidents)
+        .where(eq(incidents.id, incidentId))
+        .for("update");
+
+      if (!incident || incident.materialNeedId !== input.materialNeedId) {
+        throw new Error(`Acceptance material need does not match incident ${incidentId}`);
+      }
+
+      const [inspection] = await tx
+        .select({ id: inspections.id })
+        .from(inspections)
+        .innerJoin(receipts, eq(receipts.id, inspections.receiptId))
+        .innerJoin(poLines, eq(poLines.id, inspections.poLineId))
+        .innerJoin(purchaseOrders, eq(purchaseOrders.id, poLines.poId))
+        .where(
+          and(
+            eq(inspections.id, input.inspectionId),
+            eq(inspections.poLineId, input.poLineId),
+            eq(receipts.poLineId, input.poLineId),
+            eq(purchaseOrders.projectId, incident.projectId),
+          ),
+        );
+
+      if (!inspection) {
+        throw new Error(`Inspection does not verify PO line ${input.poLineId} for incident ${incidentId}`);
+      }
+
+      if (incident.poLineId !== input.poLineId) {
+        const [allocation] = await tx
+          .select({ id: fulfillmentAllocations.id })
+          .from(fulfillmentAllocations)
+          .where(
+            and(
+              eq(fulfillmentAllocations.poLineId, input.poLineId),
+              eq(fulfillmentAllocations.materialNeedId, input.materialNeedId),
+              eq(fulfillmentAllocations.status, "ACTIVE"),
+            ),
+          )
+          .limit(1);
+        if (!allocation) {
+          throw new Error(`PO line ${input.poLineId} is not allocated to the need for incident ${incidentId}`);
+        }
+      }
+
       const [acc] = await tx
         .insert(acceptances)
         .values({
@@ -407,7 +483,7 @@ export class IncidentRepo {
         await tx
           .update(incidents)
           .set({
-            acceptedQty: sql`${incidents.acceptedQty} + ${String(input.acceptedQty)}`,
+            acceptedQty: sql`${incidents.acceptedQty} + ${acc!.acceptedQty}`,
             updatedAt: input.acceptedAt,
           })
           .where(eq(incidents.id, incidentId));
@@ -563,7 +639,7 @@ export class IncidentRepo {
 
   /**
    * Records the waiver and schedule disposition a CLOSED transition is allowed to use.
-   * The approval must already be granted, unexpired, and for this incident.
+   * The project manager's waiver must still be valid for this incident.
    */
   async attachWaiver(input: {
     incidentId: IncidentId;
@@ -574,19 +650,17 @@ export class IncidentRepo {
   }) {
     const now = input.now ?? this.clock();
     return this.db.transaction(async (tx) => {
-      const [approval] = await tx
+      const [incident] = await tx
         .select()
-        .from(approvals)
-        .where(eq(approvals.id, input.waiverApprovalId))
-        .limit(1);
+        .from(incidents)
+        .where(eq(incidents.id, input.incidentId))
+        .for("update");
+      if (!incident || incident.version !== input.expectedVersion) {
+        throw new OptimisticLockError(input.incidentId, input.expectedVersion);
+      }
 
-      if (
-        !approval ||
-        approval.outcome !== "GRANTED" ||
-        approval.invalidatedAt !== null ||
-        approval.expiresAt <= now ||
-        approval.incidentId !== input.incidentId
-      ) {
+      const approval = await getValidWaiver(tx, input.incidentId, input.waiverApprovalId, now);
+      if (!approval) {
         throw new Error(
           `Waiver approval ${input.waiverApprovalId} is not a live grant for incident ${input.incidentId}`,
         );

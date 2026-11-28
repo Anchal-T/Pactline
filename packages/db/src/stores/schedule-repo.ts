@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import type { ActivityId, ProjectId, ScheduleRevisionId } from "@pactline/domain";
 import type { DB } from "../client.js";
 import {
@@ -163,6 +163,7 @@ export class ScheduleRepo {
           eq(scheduleRevisions.kind, kind),
         ),
       )
+      .orderBy(desc(scheduleRevisions.revision))
       .limit(1);
     return rev ?? null;
   }

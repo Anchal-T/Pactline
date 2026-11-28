@@ -66,6 +66,8 @@ export class EngineeringRepo {
           uri: input.uri ?? null,
           contentHash: input.contentHash ?? null,
           trustTier: input.trustTier,
+          retrievedAt: input.retrievedAt ?? null,
+          expiresAt: input.expiresAt ?? null,
           metadata: input.metadata ?? null,
         },
       })
@@ -185,7 +187,7 @@ export class EngineeringRepo {
           manufacturer: input.manufacturer,
           family: input.family ?? null,
           model: input.model,
-          revision: input.revision ?? 1,
+          revision: input.revision ?? productConfigurations.revision,
           equipmentType: input.equipmentType,
           specs: input.specs,
           sourceRefs: input.sourceRefs,
