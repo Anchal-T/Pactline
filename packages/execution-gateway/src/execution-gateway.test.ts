@@ -91,6 +91,14 @@ describe("ExecutionGateway", () => {
       expect((await gateway.authorize(binding())).authorized).toBe(true);
     });
 
+    it("checks revisions before taking the approval lock", async () => {
+      const revisions = vi.spyOn(store.revisions, "get");
+      const approvals = vi.spyOn(store.approvals, "get");
+
+      expect((await gateway.enqueue(binding())).authorized).toBe(true);
+      expect(revisions.mock.invocationCallOrder[0]).toBeLessThan(approvals.mock.invocationCallOrder[0]!);
+    });
+
     it("rejects an expired approval", async () => {
       now = new Date("2026-12-15T13:00:00Z");
       expect((await gateway.authorize(binding())).error).toContain("expired");
