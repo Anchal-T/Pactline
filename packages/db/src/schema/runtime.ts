@@ -200,7 +200,10 @@ export const entityRecordHistory = pgTable(
     transactionId: text("transaction_id").notNull(),
   },
   (t) => [
-    index("entity_record_history_lookup_idx").on(t.tableName, t.recordedAt),
+    index("entity_record_history_lookup_idx").on(
+      t.tableName,
+      t.recordedAt.desc(),
+    ),
     uniqueIndex("entity_record_history_version_uidx").on(
       t.tableName,
       t.recordKey,
@@ -210,5 +213,6 @@ export const entityRecordHistory = pgTable(
       "entity_record_history_operation_chk",
       sql`${t.operation} IN ('UPDATE', 'DELETE')`,
     ),
+    check("entity_record_history_version_chk", sql`${t.version} > 0`),
   ],
 );
