@@ -25,13 +25,13 @@ export const PINS: Readonly<Required<Omit<RevisionPins, "schedule_rev">>> = {
   plan_rev: "plan-chwp-r2",
 };
 
-/** Granted by the engineer of record; its validity ends with the offer it accepts (approval pin `expires_at`). */
+/** Granted by the engineer of record. It outlives the offer, so only the gateway's offer check can stop a late substitution. */
 export const SUBSTITUTION_APPROVAL: Approval = {
   approval_id: APPROVAL_ID,
   granted_by: "eor-mech-01",
   granted_role: "ENGINEER_OF_RECORD",
   granted_at: new Date("2026-12-15T15:00:00Z"),
-  expires_at: OFFER.expiresAt,
+  expires_at: new Date("2026-12-31T23:59:59Z"),
   pins: { ...PINS },
   scope: "substitute_product",
   subject_id: SUBJECT,
@@ -55,6 +55,7 @@ export async function sandboxGateway(start: Date, current: RevisionPins = PINS) 
   const adapter = new SandboxExternalAdapter();
   await store.setRevisions(SUBJECT, { ...current });
   await store.setApproval(SUBSTITUTION_APPROVAL);
+  await store.setOffer({ offer_rev: PINS.offer_rev, expires_at: OFFER.expiresAt });
   return {
     gateway: new ExecutionGateway({ store, adapter, clock }),
     store,

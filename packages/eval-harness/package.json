@@ -13,6 +13,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@pactline/agent-workers": "workspace:*",
+    "@pactline/db": "workspace:*",
     "@pactline/domain": "workspace:*",
     "@pactline/equipment-module": "workspace:*",
     "@pactline/execution-gateway": "workspace:*",

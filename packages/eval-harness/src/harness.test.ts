@@ -13,18 +13,19 @@ describe("Phase 4 scenarios", () => {
     expect(SCENARIOS.map((s) => s.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   });
 
-  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])("scenario %i passes against the real kernel modules", (id) => {
+  const hasTestDb = Boolean(process.env.TEST_DATABASE_URL);
+  const kernelIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, ...(hasTestDb ? [11] : [])];
+
+  it.each(kernelIds)("scenario %i passes against the real kernel modules", (id) => {
     const result = byId(id);
     expect(result.checks.filter((c) => !c.passed)).toEqual([]);
     expect(result.outcome).toBe("PASSED");
   });
 
-  it("reports unbuilt scenarios as PENDING with their blocker, not as passed", () => {
-    for (const id of [11, 12]) {
-      expect(byId(id).outcome).toBe("PENDING");
-      expect(byId(id).blockedBy).toMatch(/ANC-\d+/);
-    }
-    expect(report).toMatchObject({ passed: 10, failed: 0, pending: 2, complete: false });
+  it.skipIf(hasTestDb)("reports scenario 11 as PENDING without an isolated test database", () => {
+    expect(byId(11).outcome).toBe("PENDING");
+    expect(byId(11).blockedBy).toMatch(/TEST_DATABASE_URL/);
+    expect(report).toMatchObject({ passed: 11, failed: 0, pending: 1, complete: false });
   });
 });
 

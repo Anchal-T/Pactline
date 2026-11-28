@@ -472,6 +472,12 @@ importers:
 
   packages/eval-harness:
     dependencies:
+      '@pactline/agent-workers':
+        specifier: workspace:*
+        version: link:../agent-workers
+      '@pactline/db':
+        specifier: workspace:*
+        version: link:../db
       '@pactline/domain':
         specifier: workspace:*
         version: link:../domain

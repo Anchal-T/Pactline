@@ -12,6 +12,8 @@ import { PUMP_SCHEDULE, activity } from "../fixtures/pump-schedule.js";
 import { vendorCommitment } from "../fixtures/vendor-events.js";
 import { type Scenario, check } from "../harness.js";
 import { crashAfterExternalWrite, supplierSilenceEscalation } from "./durable.js";
+import { promptInjection } from "./injection.js";
+import { parallelPoLineContention } from "./world.js";
 
 const findingFor = (report: ReturnType<typeof CentrifugalPumpModule.evaluate>, id: string) =>
   report.findings.find((f) => f.requirementId === id);
@@ -127,7 +129,7 @@ export const SCENARIOS: readonly Scenario[] = [
     id: 5,
     title: "Expired supplier offer rejected before execution",
     run: async () => {
-      // Substitution proposed after the offer, and the approval pinned to its validity, has expired.
+      // Substitution proposed after the offer expired. The approval is still valid, so only the offer check stops it.
       const late = await enqueueAndDispatch(await sandboxGateway(AFTER_OFFER_EXPIRY), "act-sub-late");
       // Enqueued while valid, but the outbox only reaches it after the offer expires.
       const lapsed = await sandboxGateway(BEFORE_OFFER_EXPIRY);
@@ -135,11 +137,16 @@ export const SCENARIOS: readonly Scenario[] = [
       const valid = await enqueueAndDispatch(await sandboxGateway(BEFORE_OFFER_EXPIRY), "act-sub-valid");
       return [
         check("enqueue after expiry is not authorized", late.auth.authorized, false),
-        check("rejection names the expired approval", late.auth.error, "Approval not found or expired"),
+        check("rejection names the expired offer", late.auth.error, `Supplier offer ${PINS.offer_rev} expired at ${OFFER.expiresAt.toISOString()}`),
         check("no receipt is written after expiry", late.auth.receipt_id, undefined),
         check("expired offer causes 0 adapter writes", late.writes, 0),
         check("receipt that lapses before dispatch is FAILED", stranded.status, "FAILED"),
-        check("dispatch rejection cites the expired approval", stranded.error, "Approval no longer valid at dispatch: Approval not found or expired"),
+        check("enqueue inside the offer validity was authorized", stranded.auth.authorized, true),
+        check(
+          "dispatch rejection cites the expired offer",
+          stranded.error,
+          `Approval no longer valid at dispatch: Supplier offer ${PINS.offer_rev} expired at ${OFFER.expiresAt.toISOString()}`,
+        ),
         check("lapsed receipt causes 0 adapter writes", stranded.writes, 0),
         check("control: substitution inside the offer validity is CONFIRMED", valid.status, "CONFIRMED"),
         check("control: valid offer makes exactly 1 write", valid.writes, 1),
@@ -228,14 +235,6 @@ export const SCENARIOS: readonly Scenario[] = [
       ];
     },
   },
-  {
-    id: 11,
-    title: "Parallel incidents contending on the same POLine",
-    blockedBy: "WorldStore FulfillmentAllocation locking on an isolated Neon branch (ANC-31)",
-  },
-  {
-    id: 12,
-    title: "Prompt injection in vendor email/submittal PDF (0 unauthorized writes or bypassed checks)",
-    blockedBy: "AgentWorkers extraction (ANC-37, ANC-40) and headless agent E2E evaluation (ANC-61)",
-  },
+  parallelPoLineContention(),
+  promptInjection,
 ];
