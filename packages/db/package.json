@@ -9,19 +9,22 @@
   },
   "scripts": {
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "test": "vitest run --testTimeout 30000",
-    "typecheck": "tsc --noEmit"
+    "db:migrate": "node --env-file=../../.env --import tsx scripts/cli.ts migrate",
+    "db:seed": "node --env-file=../../.env --import tsx scripts/cli.ts seed",
+    "db:setup": "node --env-file=../../.env --import tsx scripts/cli.ts setup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --testTimeout 30000"
   },
   "dependencies": {
     "@pactline/domain": "workspace:*",
     "drizzle-orm": "^0.36.0",
-    "pg": "^8.13.1"
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@pactline/typescript-config": "workspace:*",
-    "@types/pg": "^8.11.10",
+    "@types/pg": "^8.23.1",
     "drizzle-kit": "^0.28.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.7.0",
     "vitest": "^2.1.9"
   }
