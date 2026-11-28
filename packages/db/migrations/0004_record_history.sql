@@ -12,7 +12,7 @@ CREATE TABLE entity_record_history (
 );
 
 CREATE INDEX entity_record_history_lookup_idx
-  ON entity_record_history (table_name, recorded_at DESC);
+  ON entity_record_history (table_name, recorded_at DESC NULLS LAST);
 
 CREATE UNIQUE INDEX entity_record_history_version_uidx
   ON entity_record_history (table_name, record_key, version);
