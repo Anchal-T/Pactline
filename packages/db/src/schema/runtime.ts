@@ -200,7 +200,10 @@ export const entityRecordHistory = pgTable(
     transactionId: text("transaction_id").notNull(),
   },
   (t) => [
-    index("entity_record_history_lookup_idx").on(t.tableName, t.recordedAt.desc()),
+    index("entity_record_history_lookup_idx").on(
+      t.tableName,
+      t.recordedAt.desc(),
+    ),
     uniqueIndex("entity_record_history_version_uidx").on(
       t.tableName,
       t.recordKey,
