@@ -456,9 +456,15 @@ importers:
       '@pactline/domain':
         specifier: workspace:*
         version: link:../domain
+      '@pactline/equipment-module':
+        specifier: workspace:*
+        version: link:../equipment-module
       '@pactline/incident-runtime':
         specifier: workspace:*
         version: link:../incident-runtime
+      '@pactline/schedule-engine':
+        specifier: workspace:*
+        version: link:../schedule-engine
     devDependencies:
       '@pactline/typescript-config':
         specifier: workspace:*

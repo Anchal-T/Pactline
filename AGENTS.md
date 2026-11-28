@@ -10,18 +10,17 @@
 
 ---
 
-## 2. Canonical References (Notion)
+## 2. Canonical References (Linear)
 
-Always check these pages before changing domain assumptions, invariants, or architecture:
+Always check Linear (and the in-repo docs below) before picking up work or changing domain assumptions, invariants, or architecture:
 
-1. **Strategy, Domain Model & Agent Design (Phases 1–4):**
-   - [KAYA HACKATHON](https://app.notion.com/p/42158d57c29880b4a239fefb9378e7bf) (Page ID: `42158d57-c298-80b4-a239-fefb9378e7bf`)
-   - Contains: project principles, Phase 1 expediting domain discovery, Phase 2 pump niche selection, Phase 3 procurement world model & 8 invariants, Phase 4 operator + 3 specialists + 12 mandatory test scenarios.
-2. **Runtime & System Architecture (Phase 5):**
-   - [Pactline — Phase 5 Runtime & System Architecture](https://app.notion.com/p/42358d57c29881aab441d6b9870af6a2) (Page ID: `42358d57-c298-81aa-b441-d6b9870af6a2`, nested under KAYA HACKATHON)
-   - Contains: Shape B architecture, confirmed stack, module interfaces/types, Neon Postgres invariant enforcement, edge-case recovery protocols, and eval harness design.
+1. **Linear Project — [Pactline — KAYA Grand Challenge](https://linear.app/anchal-t/project/pactline-kaya-grand-challenge-b356be876f8d)** (`P-ANC-2`, Team `ANC` / `Anchal T`):
+   - Canonical source for milestones (`M0`–`M7`), issue scope, ownership, status, and dependencies (`ANC-*`).
+   - Always scope queries to project `P-ANC-2` (team `ANC` contains other projects).
+2. **In-Repo Specifications — [`docs/README.md`](docs/README.md):**
+   - Authoritative specs in the repo: agent suite (`docs/03`), system workflows (`docs/04`), reference trace (`docs/05`), canonical demo dataset (`docs/07`), evaluation plan (`docs/08`), build checklist (`docs/checklist.md`), and living decision record (`docs/KAYA_HACKATHON_plan_doc.md`).
 
-**Notion editing rule:** Retain prior decisions and rationale, date major changes, mark superseded proposals explicitly, and distinguish **agreed**, **proposed**, **deferred**, and **rejected**. Do not create databases or reorganize Notion without explicit user approval.
+**Linear workflow rule:** Check existing issues in `P-ANC-2` before creating new ones to avoid duplicates, keep issue status and ownership backed by real code/test evidence, and do not create projects or reorganize milestones without explicit user approval.
 
 ---
 

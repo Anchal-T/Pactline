@@ -87,13 +87,17 @@ export const poLines = pgTable("po_lines", {
   version: integer("version").notNull().default(1),
 });
 
-export const fulfillmentAllocations = pgTable("fulfillment_allocations", {
-  id: text("id").primaryKey(),
-  po_line_id: text("po_line_id").notNull().references(() => poLines.id),
-  material_need_id: text("material_need_id").notNull().references(() => materialNeeds.id),
-  quantity: integer("quantity").notNull(),
-  active: boolean("active").notNull().default(true),
-});
+export const fulfillmentAllocations = pgTable(
+  "fulfillment_allocations",
+  {
+    id: text("id").primaryKey(),
+    po_line_id: text("po_line_id").notNull().references(() => poLines.id),
+    material_need_id: text("material_need_id").notNull().references(() => materialNeeds.id),
+    quantity: integer("quantity").notNull(),
+    active: boolean("active").notNull().default(true),
+  },
+  (t) => [check("fulfillment_allocations_quantity_pos", sql`${t.quantity} > 0`)],
+);
 
 /** Append-only. A newer commitment closes the previous one by setting valid_to; nothing is updated in place otherwise. */
 export const vendorCommitments = pgTable(

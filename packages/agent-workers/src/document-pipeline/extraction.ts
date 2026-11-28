@@ -260,12 +260,14 @@ export function detectConflicts<T extends Record<string, unknown>>(
 
   for (const field of fields) {
     const values = extractions.map((e) => e[field]);
-    const uniqueValues = Array.from(new Set(values.map((v) => JSON.stringify(v))));
+    const uniqueKeys = Array.from(
+      new Set(values.map((v) => (v === undefined ? "__UNDEFINED__" : JSON.stringify(v)))),
+    );
 
-    if (uniqueValues.length > 1) {
+    if (uniqueKeys.length > 1) {
       conflicts.push({
         field: String(field),
-        values: uniqueValues.map((v) => JSON.parse(v)),
+        values: uniqueKeys.map((k) => (k === "__UNDEFINED__" ? undefined : JSON.parse(k))),
       });
     }
   }

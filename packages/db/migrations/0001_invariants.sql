@@ -35,6 +35,28 @@ CREATE TRIGGER fulfillment_allocations_within_line
   BEFORE INSERT OR UPDATE ON "fulfillment_allocations"
   FOR EACH ROW EXECUTE FUNCTION pl_allocation_within_line();
 --> statement-breakpoint
+ALTER TABLE "fulfillment_allocations"
+  ADD CONSTRAINT fulfillment_allocations_quantity_pos CHECK (quantity > 0);
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION pl_po_line_quantity_covers_allocations() RETURNS trigger AS $$
+DECLARE
+  allocated integer;
+BEGIN
+  IF NEW.quantity < OLD.quantity THEN
+    SELECT COALESCE(SUM(quantity), 0) INTO allocated FROM "fulfillment_allocations"
+      WHERE po_line_id = NEW.id AND active;
+    IF allocated > NEW.quantity THEN
+      RAISE EXCEPTION 'PO line % quantity % is below active allocations %', NEW.id, NEW.quantity, allocated
+        USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
+--> statement-breakpoint
+CREATE TRIGGER po_lines_quantity_covers_allocations
+  BEFORE UPDATE OF quantity ON "po_lines"
+  FOR EACH ROW EXECUTE FUNCTION pl_po_line_quantity_covers_allocations();
+--> statement-breakpoint
 
 -- Vendor commitment history is append-only: a row may only be closed (valid_to set once), never edited or deleted.
 CREATE OR REPLACE FUNCTION pl_commitments_append_only() RETURNS trigger AS $$

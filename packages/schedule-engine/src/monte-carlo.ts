@@ -172,17 +172,23 @@ export function runMonteCarloSimulation(
     }
   }
 
-  // Create default distributions for activities without specified distributions
+  // Unlisted activities keep their deterministic network duration
   for (const activity of network.activities) {
     if (!distributions.has(activity.id)) {
-      distributions.set(activity.id, createDefaultDistribution(activity.id, activity.durationWorkdays));
+      distributions.set(activity.id, {
+        activityId: activity.id,
+        type: "DETERMINISTIC",
+        optimistic: activity.durationWorkdays,
+        mostLikely: activity.durationWorkdays,
+        pessimistic: activity.durationWorkdays,
+      });
     }
   }
 
-  // Determine target date
+  // Determine target date (last working day on or before targetDateStr)
   const baselineSolved = solve(network, scheduleOptions);
   const targetDateStr = options.targetDate ?? baselineSolved.result.projectFinish;
-  const targetDay = calendar.indexOnOrAfter(targetDateStr);
+  const targetDay = calendar.endIndexThrough(targetDateStr) - 1;
 
   // Run simulations
   const finishDays: number[] = [];
@@ -207,8 +213,11 @@ export function runMonteCarloSimulation(
         sampledDuration = samplePERT(dist.optimistic, dist.mostLikely, dist.pessimistic, rng);
       }
 
-      // Round to nearest workday (minimum 1)
-      sampledDuration = Math.max(1, Math.round(sampledDuration));
+      // Preserve zero-duration milestones; otherwise round to nearest workday (minimum 1)
+      sampledDuration =
+        activity.durationWorkdays === 0 || (dist.type === "DETERMINISTIC" && dist.mostLikely === 0)
+          ? 0
+          : Math.max(1, Math.round(sampledDuration));
 
       return {
         id: activity.id,
@@ -283,8 +292,25 @@ export function runCounterfactualAnalysis(
   // Run baseline
   const baseline = runMonteCarloSimulation(network, baselineOptions, scheduleOptions);
 
+  // Resolve a single shared target date so baseline and counterfactual compare against the same deadline
+  const sharedTargetDate =
+    counterfactualOptions.targetDate ??
+    baselineOptions.targetDate ??
+    solve(network, scheduleOptions).result.projectFinish;
+
+  const resolvedBaselineOptions: MonteCarloOptions = {
+    ...baselineOptions,
+    targetDate: sharedTargetDate,
+  };
+
+  // Run baseline with shared target date
+  const baselineResult = runMonteCarloSimulation(network, resolvedBaselineOptions, scheduleOptions);
+
   // Apply counterfactual overrides
   let counterfactualNetwork = network;
+  let resolvedCounterfactualDistributions = counterfactualOptions.distributions
+    ? [...counterfactualOptions.distributions]
+    : undefined;
 
   if (counterfactualOptions.activityOverrides && counterfactualOptions.activityOverrides.size > 0) {
     const overriddenActivities = network.activities.map((activity) => {
@@ -302,6 +328,22 @@ export function runCounterfactualAnalysis(
       ...network,
       activities: overriddenActivities,
     };
+
+    // Ensure activityOverrides replace any supplied distribution for the same activity
+    if (resolvedCounterfactualDistributions) {
+      resolvedCounterfactualDistributions = resolvedCounterfactualDistributions.filter(
+        (d) => !counterfactualOptions.activityOverrides!.has(d.activityId),
+      );
+      for (const [activityId, duration] of counterfactualOptions.activityOverrides.entries()) {
+        resolvedCounterfactualDistributions.push({
+          activityId,
+          type: "DETERMINISTIC",
+          optimistic: duration,
+          mostLikely: duration,
+          pessimistic: duration,
+        });
+      }
+    }
   }
 
   // Apply forecast overrides to schedule options
@@ -309,22 +351,26 @@ export function runCounterfactualAnalysis(
     ? { ...scheduleOptions, forecastFinishes: counterfactualOptions.forecastOverrides }
     : scheduleOptions;
 
-  // Run counterfactual
+  // Run counterfactual with the same shared target date
   const counterfactual = runMonteCarloSimulation(
     counterfactualNetwork,
-    counterfactualOptions,
+    {
+      ...counterfactualOptions,
+      targetDate: sharedTargetDate,
+      distributions: resolvedCounterfactualDistributions,
+    },
     counterfactualScheduleOptions,
   );
 
   const calendar = new WorkCalendar(network.calendar, network.startDate);
-  const baselineP50Day = calendar.indexOnOrAfter(baseline.projectFinishP50);
+  const baselineP50Day = calendar.indexOnOrAfter(baselineResult.projectFinishP50);
   const counterfactualP50Day = calendar.indexOnOrAfter(counterfactual.projectFinishP50);
 
   return {
     scenarioName,
-    baseline,
+    baseline: baselineResult,
     counterfactual,
-    deltaPOnTime: counterfactual.pMeetTargetDate - baseline.pMeetTargetDate,
+    deltaPOnTime: counterfactual.pMeetTargetDate - baselineResult.pMeetTargetDate,
     deltaP50Workdays: counterfactualP50Day - baselineP50Day,
   };
 }

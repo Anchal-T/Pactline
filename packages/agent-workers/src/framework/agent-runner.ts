@@ -112,15 +112,33 @@ export abstract class AgentWorker<TInput, TOutput> {
     // Validate budget constraints
     this.validateBudget(task);
 
-    // Execute specialist logic
-    const { output, model_usage } = await this.run(task);
+    // Compute effective timeout (respecting both config.timeout_ms and task.deadline)
+    let effectiveTimeoutMs = this.config.timeout_ms;
+    if (task.deadline) {
+      const deadlineMs = new Date(task.deadline).getTime() - start;
+      if (deadlineMs <= 0) {
+        throw new AgentTimeoutError(task.task_id, 0, 0);
+      }
+      effectiveTimeoutMs =
+        effectiveTimeoutMs !== undefined ? Math.min(effectiveTimeoutMs, deadlineMs) : deadlineMs;
+    }
+
+    // Execute specialist logic with active timeout enforcement
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const { output, model_usage } = await (effectiveTimeoutMs
+      ? Promise.race([
+          this.run(task),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => {
+              reject(new AgentTimeoutError(task.task_id, Date.now() - start, effectiveTimeoutMs!));
+            }, effectiveTimeoutMs);
+          }),
+        ]).finally(() => {
+          if (timer) clearTimeout(timer);
+        })
+      : this.run(task));
 
     const duration_ms = Date.now() - start;
-
-    // Enforce timeout
-    if (this.config.timeout_ms && duration_ms > this.config.timeout_ms) {
-      throw new AgentTimeoutError(task.task_id, duration_ms, this.config.timeout_ms);
-    }
 
     return {
       task_id: task.task_id,

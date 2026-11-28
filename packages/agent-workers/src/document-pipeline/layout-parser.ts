@@ -56,6 +56,7 @@ export function normalizeWhitespace(text: string): string {
  */
 export function findExcerpt(layout: DocumentLayout, excerpt: string): TextBlock[] {
   const normalizedExcerpt = normalizeWhitespace(excerpt).toLowerCase();
+  if (!normalizedExcerpt) return [];
   const matches: TextBlock[] = [];
 
   for (const block of layout.blocks) {
