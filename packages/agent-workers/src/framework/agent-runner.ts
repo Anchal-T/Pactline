@@ -140,6 +140,9 @@ export abstract class AgentWorker<TInput, TOutput> {
 
     const duration_ms = Date.now() - start;
 
+    // P2 #11: Enforce task budget on cumulative usage
+    this.checkBudget(task, model_usage);
+
     return {
       task_id: task.task_id,
       output,

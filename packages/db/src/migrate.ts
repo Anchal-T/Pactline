@@ -57,5 +57,23 @@ export async function migrate(pool: pg.Pool, schema = "public"): Promise<string[
   return applied;
 }
 
-/** Alias for callers that use the drizzle-kit naming convention. */
-export { migrate as applyMigrations };
+import { createPool } from "./client.js";
+
+/**
+ * Applies migrations using either an existing pg.Pool or a connection string
+ * (defaulting to DATABASE_URL_UNPOOLED ?? DATABASE_URL).
+ */
+export async function applyMigrations(
+  poolOrUrl: pg.Pool | string | undefined = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL,
+  schema = "public",
+): Promise<string[]> {
+  if (typeof poolOrUrl === "string" || poolOrUrl === undefined) {
+    const pool = createPool(poolOrUrl);
+    try {
+      return await migrate(pool, schema);
+    } finally {
+      await pool.end();
+    }
+  }
+  return migrate(poolOrUrl, schema);
+}

@@ -2,7 +2,7 @@
 import { z } from "zod";
 import type { ChatOpenAI } from "@langchain/openai";
 import type { ModelUsage } from "../framework/agent-runner.js";
-import { extractWithAgreement, quarantineExtraction } from "../framework/langchain-adapter.js";
+import { extractWithAgreement, invokeWithStructuredOutput, quarantineExtraction } from "../framework/langchain-adapter.js";
 import type { DocumentLayout, TextBlock } from "./document-store.js";
 import { findExcerpt } from "./layout-parser.js";
 
@@ -211,28 +211,35 @@ ${layout.full_text}
 
 Return only the structured extraction as specified.`;
 
-    // P1 #3: Run TWO independent extractions and compare field-by-field.
-    // `extractWithAgreement` already iterates fields individually, so only agreed
-    // fields end up in `output`. Collect per-field conflicts from the disagreed fields.
-    const { output, usage } = await extractWithAgreement(this.model, submittalSchema, prompt, 2);
-
-    // Detect per-field conflicts by running a second independent extraction and comparing
-    // values directly. Fields absent from `output` (not agreed) are conflict candidates.
-    const { output: run2Output } = await extractWithAgreement(this.model, submittalSchema, prompt, 2);
+    // P1 #5, #6 & P2 #9: Run TWO independent extractions and compare field-by-field
+    // (including unit equality), reporting usage from both runs.
+    const [run1, run2] = await Promise.all([
+      invokeWithStructuredOutput(this.model, submittalSchema, prompt),
+      invokeWithStructuredOutput(this.model, submittalSchema, prompt),
+    ]);
+    const usage: ModelUsage[] = [run1.usage, run2.usage];
 
     const values: SubmittalValue[] = [];
     const conflicts: Array<{ field: string; values: string[] }> = [];
 
-    // Per-field agreement: compare the two extraction runs field-by-field
+    // Per-field agreement: compare the two extraction runs field-by-field (value AND unit)
     for (const field of fields) {
-      const val1 = output.values?.[field];
-      const val2 = run2Output.values?.[field];
+      const val1 = run1.output.values?.[field];
+      const val2 = run2.output.values?.[field];
 
-      const agreed = val1 && val2 && JSON.stringify(val1.value) === JSON.stringify(val2.value);
+      const agreed =
+        val1 !== undefined &&
+        val2 !== undefined &&
+        JSON.stringify(val1.value) === JSON.stringify(val2.value) &&
+        (val1.unit ?? undefined) === (val2.unit ?? undefined);
 
       if (!agreed) {
-        // Record the conflict with both values (or whichever run found it)
-        const conflictValues = [val1?.value, val2?.value].filter((v): v is string => v !== undefined);
+        // Record the conflict with both values/units (or whichever run found it)
+        const formatReading = (v: { value: string; unit?: string } | undefined) =>
+          v ? (v.unit ? `${v.value} ${v.unit}` : v.value) : undefined;
+        const conflictValues = [formatReading(val1), formatReading(val2)].filter(
+          (v): v is string => v !== undefined,
+        );
         if (conflictValues.length > 0) {
           conflicts.push({ field, values: Array.from(new Set(conflictValues)) });
         }

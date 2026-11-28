@@ -289,9 +289,6 @@ export function runCounterfactualAnalysis(
 ): CounterfactualResult {
   const scenarioName = counterfactualOptions.scenarioName ?? "counterfactual";
 
-  // Run baseline
-  const baseline = runMonteCarloSimulation(network, baselineOptions, scheduleOptions);
-
   // Resolve a single shared target date so baseline and counterfactual compare against the same deadline
   const sharedTargetDate =
     counterfactualOptions.targetDate ??
@@ -311,6 +308,9 @@ export function runCounterfactualAnalysis(
   let resolvedCounterfactualDistributions = counterfactualOptions.activityDistributions
     ? [...counterfactualOptions.activityDistributions]
     : undefined;
+  let resolvedProcurementDistributions = counterfactualOptions.procurementDistributions
+    ? [...counterfactualOptions.procurementDistributions]
+    : undefined;
 
   if (counterfactualOptions.activityOverrides && counterfactualOptions.activityOverrides.size > 0) {
     const overriddenActivities = network.activities.map((activity) => {
@@ -329,7 +329,12 @@ export function runCounterfactualAnalysis(
       activities: overriddenActivities,
     };
 
-    // Ensure activityOverrides replace any supplied distribution for the same activity
+    // Ensure activityOverrides replace any supplied distribution (activity or procurement) for the same activity
+    if (resolvedProcurementDistributions) {
+      resolvedProcurementDistributions = resolvedProcurementDistributions.filter(
+        (d) => !counterfactualOptions.activityOverrides!.has(d.activityId),
+      );
+    }
     if (resolvedCounterfactualDistributions) {
       resolvedCounterfactualDistributions = resolvedCounterfactualDistributions.filter(
         (d) => !counterfactualOptions.activityOverrides!.has(d.activityId),
@@ -358,6 +363,7 @@ export function runCounterfactualAnalysis(
       ...counterfactualOptions,
       targetDate: sharedTargetDate,
       activityDistributions: resolvedCounterfactualDistributions,
+      procurementDistributions: resolvedProcurementDistributions,
     },
     counterfactualScheduleOptions,
   );
