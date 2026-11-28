@@ -104,7 +104,7 @@ export function RequestAccess({ children }: { children: ReactNode }) {
               </div>
             </div>
 
-            <Button type="submit" size="lg" className="justify-between">
+            <Button type="submit" size="lg" variant="gold" className="justify-between">
               Send request
               <ButtonIcon>
                 <ArrowRight size={15} weight="bold" />

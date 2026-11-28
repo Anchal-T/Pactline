@@ -145,12 +145,12 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ✅ **[M]** **Taint marking** on untrusted fields; deterministic cross-checks promote to `verified`
 
 ### 2E — Policy & Execution Gateway
-- ⬜ 👤 ___________ **[M]** Action classes `READ | DRAFT | EXTERNAL_WRITE | BINDING` and required approvals
-- ⬜ **[M]** Approval pin + expiry re-check inside the enqueue transaction
-- ⬜ **[M]** `action_receipts` outbox with deterministic idempotency key; `DISPATCHING` before execute
-- ⬜ **[M]** `reconcile(idempotencyKey)` before retry; `UNCERTAIN → ESCALATED`
-- ⬜ **[M]** **Taint policy:** no tainted argument to a side effect without human approval; recipient allow-list; rate limits
-- ⬜ **[M]** `SandboxExternalAdapter` with fault injection (crash after write, timeout)
+- ✅ 👤 ___Abhishek________ **[M]** Action classes `READ | DRAFT | EXTERNAL_WRITE | BINDING` and required approvals
+- ✅ **[M]** Approval pin + expiry re-check inside the enqueue transaction
+- ✅ **[M]** `action_receipts` outbox with deterministic idempotency key; `DISPATCHING` before execute
+- ✅ **[M]** `reconcile(idempotencyKey)` before retry; `UNCERTAIN → ESCALATED`
+- ✅ **[M]** **Taint policy:** no tainted argument to a side effect without human approval; recipient allow-list; rate limits
+- ✅ **[M]** `SandboxExternalAdapter` with fault injection (crash after write, timeout)
 
 ### 2F — Pump Compliance Evaluator (EquipmentModule)
 - ⬜ 👤 ___________ **[M]** `CentrifugalPumpModule` behind `EquipmentModule` interface

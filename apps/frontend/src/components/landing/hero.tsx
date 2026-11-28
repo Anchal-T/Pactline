@@ -13,7 +13,7 @@ export function Hero() {
       <div className="relative z-10 mx-auto grid w-full max-w-[1180px] gap-10 px-5 pt-28 sm:px-6 sm:pt-32 lg:grid-cols-[1fr_22rem] lg:pt-28">
         <div>
           <h1 className={`t-display max-w-[46rem] text-ink lg:text-[clamp(3.4rem,1.9rem+2.9vw,4.4rem)] ${rise}`}>
-            Long-lead equipment, on site when the crew needs it
+            <em className="gold-word">{"Long-lead "}</em> equipment, on site when the crew needs it
           </h1>
           <p className={`t-lead mt-5 max-w-[30rem] motion-safe:delay-150 ${rise}`}>
             Pactline watches schedules, purchase orders and vendor promises for procurement teams, then runs every slipping delivery through to verified receipt.

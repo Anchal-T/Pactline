@@ -298,7 +298,7 @@ export function Swarm() {
     <section ref={root} id="decide" className="relative py-12 sm:py-16 lg:py-20">
       <div className="mx-auto max-w-[1180px] px-5 sm:px-6">
         <div data-reveal className="max-w-[40rem]">
-          <h2 className="t-h2 text-ink">Watch the operator decide</h2>
+          <h2 className="t-h2 text-ink">Watch the <em className="gold-word">operator</em> decide</h2>
           <p className="t-lead mt-5">
             One late delivery, handled by a small team of agents. Each one does a bounded job, returns evidence, and stops where a person has to sign. Select any node to see its contract.
           </p>

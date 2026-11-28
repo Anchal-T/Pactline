@@ -76,11 +76,11 @@ export function Loop() {
 
   return (
     <section ref={root} id="loop" className="relative">
-      <div ref={stage} className="relative flex h-[100svh] flex-col justify-start gap-6 overflow-hidden pt-24 pb-4 md:justify-center md:gap-10 md:pt-20 md:pb-8 motion-reduce:h-auto motion-reduce:py-12">
+      <div ref={stage} className="relative flex h-[100svh] flex-col justify-start gap-6 overflow-hidden pt-24 pb-4 md:justify-start md:gap-8 md:pt-28 md:pb-8 motion-reduce:h-auto motion-reduce:py-12">
         <div className="mx-auto w-full max-w-[1180px] px-5 sm:px-6" data-reveal>
-          <h2 className="t-h2 max-w-[18ch] text-ink">One loop, run until the job is done</h2>
-          <p className="t-lead mt-5 max-w-[36rem]">
-            The operator holds one standing responsibility: compliant equipment, available on the date the work needs it. Records below are sandbox data.
+          <h2 className="t-h2 max-w-[18ch] text-ink">One <em className="gold-word">{"loop "}</em>, run until the job is done</h2>
+          <p className="t-lead mt-3 max-w-[36rem]">
+            The operator holds one standing responsibility - compliant equipment, available on the date the work needs it.
           </p>
         </div>
 
@@ -90,7 +90,7 @@ export function Loop() {
         >
           {STAGES.map((s) => (
             <article key={s.verb} className="bezel w-[min(82vw,380px)] shrink-0 snap-start">
-              <div className="bezel-core flex h-full min-h-[17.5rem] flex-col p-5 sm:min-h-[20rem] sm:p-7 lg:min-h-[24rem]">
+              <div className="bezel-core flex h-full min-h-[17.5rem] flex-col p-5 sm:min-h-[20rem] sm:p-7 lg:min-h-[clamp(17rem,calc(100svh-28.5rem),24rem)]">
                 <div className="flex items-start justify-between gap-4">
                   <h3 className="font-display text-[2.6rem] leading-none font-normal tracking-[-0.025em] text-ink">{s.verb}</h3>
                   <span className="flex -space-x-1.5 pt-1">
@@ -99,8 +99,8 @@ export function Loop() {
                     ))}
                   </span>
                 </div>
-                <p className="t-body mt-5">{s.body}</p>
-                <dl className="t-mono mt-auto grid gap-2 border-t border-line pt-5">
+                <p className="t-body mt-5 mb-5">{s.body}</p>
+                <dl className="t-mono mt-auto grid gap-2 border-t-[1.5px] border-gold-line pt-5">
                   {s.record.map(([k, v]) => (
                     <div key={k} className="flex justify-between gap-6">
                       <dt className="text-ink-3">{k}</dt>

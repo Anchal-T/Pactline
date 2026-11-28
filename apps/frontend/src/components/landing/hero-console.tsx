@@ -45,7 +45,7 @@ export function HeroConsole() {
   return (
     <div ref={box} className="w-[22rem]">
       <div className="bezel">
-        <div className="bezel-core w-full p-3 shadow-[0_24px_60px_-36px_rgb(15_58_43/0.45)] dark:shadow-[0_24px_60px_-30px_rgb(0_0_0/0.7)]">
+        <div className="bezel-core gold-edge w-full p-3 shadow-[0_24px_60px_-36px_rgb(15_58_43/0.45)] dark:shadow-[0_24px_60px_-30px_rgb(0_0_0/0.7)]">
           <div className="flex items-center justify-between gap-3 px-1">
             <div className="grid">
               <span className="t-mono text-[0.6875rem] text-ink-3">INC-0412</span>

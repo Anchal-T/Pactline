@@ -25,6 +25,16 @@
   --fail: #9c4433;
   --unknown: #85661a;
 
+  /* Gold: a rare accent. Antique, not yellow. Used for one headline word per section, hairlines, and the crane's load. */
+  --gold: #8f6d1f;
+  --gold-hi: #c19a3e;
+  --gold-lo: #6f5214;
+  --gold-soft: rgb(143 109 31 / 0.1);
+  --gold-line: rgb(168 128 38 / 0.5);
+  /* Gold button fill: light enough that dark text keeps contrast in both themes. */
+  --gold-btn-a: #dcbc66;
+  --gold-btn-b: #b88f35;
+
   /* Agent identity: each actor in a demo keeps one hue, all drawn from the forest family. */
   --ag-op: #1d6a4c;
   --ag-inv: #6d7a3b;
@@ -98,6 +108,12 @@
   --fail: #d98472;
   --unknown: #d2b25e;
 
+  --gold: #d4af5f;
+  --gold-hi: #ecd091;
+  --gold-lo: #b08d3e;
+  --gold-soft: rgb(212 175 95 / 0.1);
+  --gold-line: rgb(212 175 95 / 0.45);
+
   --ag-op: #4fb487;
   --ag-inv: #b3be74;
   --ag-cmp: #6cc0b3;
@@ -144,6 +160,10 @@
   --color-pass: var(--pass);
   --color-fail: var(--fail);
   --color-unknown: var(--unknown);
+  --color-gold: var(--gold);
+  --color-gold-hi: var(--gold-hi);
+  --color-gold-soft: var(--gold-soft);
+  --color-gold-line: var(--gold-line);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -327,7 +347,7 @@
       var(--glass-rim),
       transparent 34%,
       transparent 70%,
-      var(--glass-sheen)
+      var(--gold-line)
     );
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
@@ -340,27 +360,76 @@
   .bezel {
     border-radius: var(--radius-xl);
     padding: 0.3125rem;
-    background: rgb(20 32 25 / 0.03);
+    background: linear-gradient(150deg, var(--gold-soft), rgb(20 32 25 / 0.03) 42%);
     box-shadow: inset 0 0 0 1px rgb(20 32 25 / 0.06);
   }
 
   .dark .bezel {
-    background: rgb(255 255 255 / 0.025);
+    background: linear-gradient(150deg, var(--gold-soft), rgb(255 255 255 / 0.025) 42%);
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
   }
 
   .bezel-core {
     border-radius: calc(var(--radius-xl) - 0.3125rem);
-    background: var(--surface);
+    background:
+      radial-gradient(90% 60% at 0% 0%, var(--gold-soft), transparent 70%),
+      var(--surface);
     box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.55),
+      inset 0 1px 0 color-mix(in srgb, var(--gold-hi) 38%, rgb(255 255 255 / 0.55)),
       0 1px 2px rgb(15 58 43 / 0.05);
   }
 
   .dark .bezel-core {
     box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.05),
+      inset 0 1px 0 color-mix(in srgb, var(--gold-hi) 22%, rgb(255 255 255 / 0.05)),
       0 1px 2px rgb(0 0 0 / 0.3);
+  }
+
+  /* One word of a headline. Italic Cormorant in a slow, low-contrast gold drift. The solid colour is the fallback. */
+  .gold-word {
+    font-style: italic;
+    font-weight: 500;
+    white-space: nowrap;
+    padding-inline-end: 0.04em;
+    color: var(--gold);
+    background-image: linear-gradient(100deg, var(--gold-lo) 0%, var(--gold-hi) 38%, var(--gold) 52%, var(--gold-lo) 100%);
+    background-size: 220% 100%;
+    background-position: 0% 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .gold-word {
+      animation-name: gold-drift;
+      animation-duration: 12s;
+      animation-timing-function: ease-in-out;
+      animation-iteration-count: infinite;
+      animation-direction: alternate;
+    }
+  }
+
+  /* Short hairline that fades out, used above a heading like a printer's rule. */
+  .gold-rule {
+    display: block;
+    width: 3.25rem;
+    height: 1px;
+    background: linear-gradient(90deg, var(--gold-hi), var(--gold-line) 60%, transparent);
+  }
+
+  /* A single gold edge along the top of a raised card. */
+  .gold-edge {
+    position: relative;
+  }
+
+  .gold-edge::after {
+    content: "";
+    position: absolute;
+    inset: 0 1.75rem auto;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold-line), transparent);
+    pointer-events: none;
   }
 
   .press {
@@ -409,7 +478,7 @@
 }
 
 .art .mark {
-  stroke: var(--brand);
+  stroke: var(--gold);
   stroke-width: calc(var(--u) * 1.35px);
 }
 
@@ -469,6 +538,36 @@
 
 @keyframes art-failsafe {
   to {
+    visibility: visible;
+  }
+}
+
+@keyframes gold-drift {
+  from {
+    background-position: 0% 0;
+  }
+  to {
+    background-position: 100% 0;
+  }
+}
+
+/* Reveal targets start hidden in the server markup, so text never paints and then vanishes when GSAP takes over
+   after hydration. useReveal marks each one with data-rv once it owns the element; the keyframe only rescues
+   the page if scripts never run. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-reveal]:not([data-rv]) {
+    opacity: 0;
+    visibility: hidden;
+    animation-name: reveal-failsafe;
+    animation-duration: 0s;
+    animation-delay: 3.5s;
+    animation-fill-mode: forwards;
+  }
+}
+
+@keyframes reveal-failsafe {
+  to {
+    opacity: 1;
     visibility: visible;
   }
 }
