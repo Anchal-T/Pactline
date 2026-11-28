@@ -20,7 +20,7 @@ interface ScenarioBase {
 }
 
 export interface RunnableScenario extends ScenarioBase {
-  readonly run: () => readonly CheckResult[];
+  readonly run: () => readonly CheckResult[] | Promise<readonly CheckResult[]>;
 }
 
 /** Registered but not yet runnable; names the missing component(s) and Linear issues. */
@@ -52,8 +52,9 @@ export interface EvalReport {
 
 const MANDATORY_SCENARIO_IDS = Array.from({ length: 12 }, (_, index) => index + 1);
 
-export function runScenarios(scenarios: readonly Scenario[]): EvalReport {
-  const results = scenarios.map(runScenario);
+export async function runScenarios(scenarios: readonly Scenario[]): Promise<EvalReport> {
+  const results: ScenarioResult[] = [];
+  for (const scenario of scenarios) results.push(await runScenario(scenario));
   const count = (outcome: ScenarioOutcome) => results.filter((r) => r.outcome === outcome).length;
   const failed = count("FAILED");
   const pending = count("PENDING");
@@ -64,13 +65,13 @@ export function runScenarios(scenarios: readonly Scenario[]): EvalReport {
   return { results, passed, failed, pending, complete };
 }
 
-function runScenario(scenario: Scenario): ScenarioResult {
+async function runScenario(scenario: Scenario): Promise<ScenarioResult> {
   const base = { id: scenario.id, title: scenario.title };
   if (!("run" in scenario)) {
     return { ...base, outcome: "PENDING", checks: [], blockedBy: scenario.blockedBy };
   }
   try {
-    const checks = scenario.run();
+    const checks = await scenario.run();
     const passed = checks.length > 0 && checks.every((c) => c.passed);
     return { ...base, outcome: passed ? "PASSED" : "FAILED", checks };
   } catch (error) {

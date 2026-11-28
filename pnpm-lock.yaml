@@ -411,6 +411,25 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.20.5)(lightningcss@1.33.0)(supports-color@7.2.0)
 
+  packages/entity-resolver:
+    dependencies:
+      '@pactline/domain':
+        specifier: workspace:*
+        version: link:../domain
+    devDependencies:
+      '@pactline/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.5
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.20.5)(lightningcss@1.33.0)(supports-color@7.2.0)
+
   packages/equipment-module:
     dependencies:
       '@pactline/domain':
@@ -435,6 +454,9 @@ importers:
       '@pactline/equipment-module':
         specifier: workspace:*
         version: link:../equipment-module
+      '@pactline/execution-gateway':
+        specifier: workspace:*
+        version: link:../execution-gateway
       '@pactline/incident-runtime':
         specifier: workspace:*
         version: link:../incident-runtime

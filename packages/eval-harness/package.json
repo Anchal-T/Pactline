@@ -15,6 +15,7 @@
   "dependencies": {
     "@pactline/domain": "workspace:*",
     "@pactline/equipment-module": "workspace:*",
+    "@pactline/execution-gateway": "workspace:*",
     "@pactline/incident-runtime": "workspace:*",
     "@pactline/schedule-engine": "workspace:*"
   },

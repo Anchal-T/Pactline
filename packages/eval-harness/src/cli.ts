@@ -2,7 +2,7 @@
 import { type CheckResult, runScenarios } from "./harness.js";
 import { SCENARIOS } from "./scenarios/index.js";
 
-const report = runScenarios(SCENARIOS);
+const report = await runScenarios(SCENARIOS);
 const show = (value: unknown) => JSON.stringify(value);
 
 for (const result of report.results) {
