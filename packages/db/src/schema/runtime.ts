@@ -183,3 +183,32 @@ export const specialistResultCache = pgTable("specialist_result_cache", {
     .notNull()
     .defaultNow(),
 });
+
+export const entityRecordHistory = pgTable(
+  "entity_record_history",
+  {
+    id: uuid("id").default(sql`uuidv7()`).primaryKey(),
+    tableName: text("table_name").notNull(),
+    recordKey: jsonb("record_key").$type<Record<string, string>>().notNull(),
+    version: integer("version").notNull(),
+    operation: text("operation").notNull(),
+    oldRecord: jsonb("old_record").$type<Record<string, unknown>>(),
+    newRecord: jsonb("new_record").$type<Record<string, unknown>>(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    transactionId: text("transaction_id").notNull(),
+  },
+  (t) => [
+    index("entity_record_history_lookup_idx").on(t.tableName, t.recordedAt),
+    uniqueIndex("entity_record_history_version_uidx").on(
+      t.tableName,
+      t.recordKey,
+      t.version,
+    ),
+    check(
+      "entity_record_history_operation_chk",
+      sql`${t.operation} IN ('UPDATE', 'DELETE')`,
+    ),
+  ],
+);
