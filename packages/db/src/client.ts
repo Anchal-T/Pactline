@@ -15,6 +15,7 @@ import * as schema from "./schema/index.js";
  */
 
 export type DB = NodePgDatabase<typeof schema>;
+export type PgPool = pg.Pool;
 
 export interface DbHandle {
   db: DB;
@@ -71,3 +72,45 @@ export async function connect(options: ConnectOptions = {}): Promise<DbHandle> {
   const db = drizzle(pool, { schema });
   return { db, pool, close: () => pool.end() };
 }
+
+// ── Stores-layer helpers (simpler, no DNS) ──────────────────────────────────
+
+export function createPool(connectionString = process.env.DATABASE_URL): pg.Pool {
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is required to create a Postgres pool");
+  }
+  return new pg.Pool({ connectionString });
+}
+
+export function createDb(poolOrUrl?: pg.Pool | string): { db: DB; pool: pg.Pool } {
+  const pool =
+    typeof poolOrUrl === "string" || poolOrUrl === undefined
+      ? createPool(poolOrUrl)
+      : poolOrUrl;
+  return { db: drizzle(pool, { schema }), pool };
+}
+
+let defaultPool: pg.Pool | undefined;
+let defaultDb: DB | undefined;
+
+export function getDb(): DB {
+  if (!defaultDb) {
+    defaultPool = createPool();
+    defaultDb = drizzle(defaultPool, { schema });
+  }
+  return defaultDb;
+}
+
+export async function closeDefaultPool(): Promise<void> {
+  if (defaultPool) {
+    await defaultPool.end();
+    defaultPool = undefined;
+    defaultDb = undefined;
+  }
+}
+
+export const db: DB = new Proxy({} as DB, {
+  get(_target, prop, receiver) {
+    return Reflect.get(getDb(), prop, receiver);
+  },
+});

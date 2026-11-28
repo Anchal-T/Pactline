@@ -13,7 +13,7 @@
     "db:seed": "node --env-file=../../.env --import tsx scripts/cli.ts seed",
     "db:setup": "node --env-file=../../.env --import tsx scripts/cli.ts setup",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --testTimeout 30000"
   },
   "dependencies": {
     "@pactline/domain": "workspace:*",

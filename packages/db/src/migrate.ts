@@ -56,3 +56,6 @@ export async function migrate(pool: pg.Pool, schema = "public"): Promise<string[
   }
   return applied;
 }
+
+/** Alias for callers that use the drizzle-kit naming convention. */
+export { migrate as applyMigrations };
