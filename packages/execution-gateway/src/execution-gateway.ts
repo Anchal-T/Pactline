@@ -394,6 +394,8 @@ export class ExecutionGateway {
     if (!req.subject_id) return deny("Approved action requires subject_id", "Approval cannot be matched to a subject");
     if (!rule.required_role) return deny(`No approving role configured for ${req.action_type}`, "Missing trusted role requirement");
 
+    // Revision writers lock the subject before invalidating its approvals.
+    const current = await tx.currentRevisions(req.subject_id);
     const approval = await tx.getValidApproval(req.approval_id, now);
     if (!approval || approval.expires_at.getTime() <= now.getTime()) {
       return deny("Approval not found or expired", "Invalid or expired approval");
@@ -407,7 +409,6 @@ export class ExecutionGateway {
       return deny(`Approval is for ${approval.subject_id}, not ${req.subject_id}`, "Approval is for a different subject");
     }
 
-    const current = await tx.currentRevisions(req.subject_id);
     if (!current) return deny(`No current revisions for ${req.subject_id}`, "Cannot verify approval pins");
     for (const k of PIN_KEYS) {
       if ((approval.pins[k] ?? null) !== (current[k] ?? null)) {

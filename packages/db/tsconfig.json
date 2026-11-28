@@ -1,4 +1,4 @@
 {
   "extends": "@pactline/typescript-config/base.json",
-  "include": ["src", "drizzle.config.ts"]
+  "include": ["src", "scripts", "test", "drizzle.config.ts"]
 }

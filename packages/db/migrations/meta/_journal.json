@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1795875573359,
+      "tag": "0000_tearful_raider",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795875600000,
+      "tag": "0001_invariants_triggers",
+      "breakpoints": false
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795875800000,
+      "tag": "0002_baseline_child_insert",
+      "breakpoints": false
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795876000000,
+      "tag": "0003_review_invariants",
+      "breakpoints": false
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795877000000,
+      "tag": "0004_record_history",
+      "breakpoints": false
+    }
+  ]
+}

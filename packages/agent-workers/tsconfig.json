@@ -1,4 +1,4 @@
 {
   "extends": "@pactline/typescript-config/base.json",
-  "include": ["src"]
+  "include": ["src", "test"]
 }

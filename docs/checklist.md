@@ -109,15 +109,15 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 > **Owner:** 1–2 people | **Parallel with Phase 1** | **Est.:** 3 days
 
 ### 2A — World State Store (Neon Postgres + Drizzle)
-- 🟡 👤 ___________ **[M]** Set up Neon PostgreSQL and Drizzle migrations (database client and migration configuration scaffolded). [Database package](../packages/db/package.json)
-- ⬜ **[M]** Schema for plan-doc §15 entities **plus** `facts` (bi-temporal: `valid_from/valid_to/recorded_at/source_event_id`), `entity_links`, `plans`, `plan_steps`, `specialist_tasks`, `audit_events`, `calibration`, `prequal_scorecards`
-- ⬜ **[M]** Append-only commitment history; versioned records
-- ⬜ **[M]** DB constraints for invariants 1, 3, 5, 7, 8 (allocation sum, offer evidence/expiry NOT NULL, closure, baseline immutability, open-incident CHECK)
-- ⬜ **[M]** Seed loader from Phase 1 fixtures
-- ⬜ **[M]** Read projections and CRUD/query functions for API/UI
+- ✅ 👤 ___Abhishek________ **[M]** Set up Neon PostgreSQL and Drizzle migrations (database client and migration configuration scaffolded). [Database package](../packages/db/package.json)
+- ✅ **[M]** Schema for plan-doc §15 entities **plus** `facts` (bi-temporal: `valid_from/valid_to/recorded_at/source_event_id`), `entity_links`, `plans`, `plan_steps`, `specialist_tasks`, `audit_events`, `calibration`, `prequal_scorecards`
+- ✅ **[M]** Append-only commitment history; versioned records
+- ✅ **[M]** DB constraints for invariants 1, 3, 5, 7, 8 (allocation sum, offer evidence/expiry NOT NULL, closure, baseline immutability, open-incident CHECK)
+- 🟡 **[M]** Seed loader from Phase 1 fixtures
+- 🟡 **[M]** Read projections and CRUD/query functions for API/UI
 
 ### 2B — Schedule Engine
-- ✅ 👤 ___________ Deterministic CPM/float calculator — `packages/schedule-engine`
+- ✅ 👤 ___Abhishek________ Deterministic CPM/float calculator — `packages/schedule-engine`
 - ✅ Forward pass (early start / finish)
 - ✅ Backward pass (late start / finish)
 - ✅ Total float per activity
@@ -125,8 +125,8 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ✅ Impact analysis (`analyzeDelay`): delayed activities, float consumed, critical path affected, projected dates, `NONE | FLOAT_ABSORBED | WARNING | CRITICAL`
 - ✅ Working-day calendars, holidays, lags, milestones, SNET constraints
 - ✅ Unit tests with known schedule → known results
-- ⬜ **[M]** Monte Carlo layer: seeded RNG, 5–10k runs, P(meet need date), p50/p80 finish, criticality index
-- ⬜ **[M]** Counterfactual API: re-run per recovery option → ΔP(on-time)
+- ✅ 👤 ___Abhishek________ **[M]** Monte Carlo layer: seeded RNG, 5–10k runs, P(meet need date), p50/p80 finish, criticality index
+- ✅ **[M]** Counterfactual API: re-run per recovery option → ΔP(on-time)
 - ⬜ **[S]** Schedule-quality findings (open ends, cycles, missing logic)
 - ⬜ **[S]** **Keploy:** record `POST /api/events/ingest` during demo replay → `apps/api/keploy/`
 
@@ -153,13 +153,13 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 - ✅ **[M]** `SandboxExternalAdapter` with fault injection (crash after write, timeout)
 
 ### 2F — Pump Compliance Evaluator (EquipmentModule)
-- ⬜ 👤 ___________ **[M]** `CentrifugalPumpModule` behind `EquipmentModule` interface
-- ⬜ **[M]** Monotone (PCHIP) interpolation within digitized range; **no extrapolation → UNKNOWN**
-- ⬜ **[M]** Affinity laws for impeller trim / speed
-- ⬜ **[M]** Checks: head at duty with ISO 9906 grade tolerance; efficiency at duty; operating region vs BEP; NPSH margin; motor non-overload to end of curve; electrical (V/ph/Hz/IE); flanges DN/PN; materials; fluid temperature
-- ⬜ **[M]** PASS / FAIL / UNKNOWN / NOT_APPLICABLE with evidence refs per finding
+- ✅ 👤 ___Abhishek________ **[M]** `CentrifugalPumpModule` behind `EquipmentModule` interface
+- ✅ **[M]** Monotone (PCHIP) interpolation within digitized range; **no extrapolation → UNKNOWN**
+- ✅ **[M]** Affinity laws for impeller trim / speed
+- 🟡 **[M]** Checks: head at duty with ISO 9906 grade tolerance; efficiency at duty; operating region vs BEP; NPSH margin; motor non-overload to end of curve; electrical (V/ph/Hz/IE); flanges DN/PN; materials; fluid temperature
+- 🟡 **[M]** PASS / FAIL / UNKNOWN / NOT_APPLICABLE with evidence refs per finding
 - ⬜ **[M]** **Calibrated abstention:** |margin| < extraction error band → UNKNOWN
-- ⬜ **[M]** Unit tests: known curves → known verdicts (A/B/C)
+- 🟡 **[M]** Unit tests: known curves → known verdicts (A/B/C)
 - ⬜ **[S]** Stub second module (AHU fan or chiller) to prove the seam
 - ⬜ **[S]** **Keploy:** record `pactline_check_submittal` MCP calls → `apps/mcp/keploy/`
 
@@ -174,17 +174,17 @@ Each phase is **self-contained enough for a separate person/pair to pick up**. D
 > **Owner:** 1–2 people | **Depends on:** Phase 0, 2A, 2D (skeletons can start now) | **Est.:** 4 days | **Spec:** [docs/03 §4](03_Agent_Suite_Specification.md)
 
 ### 3A — Agent Framework Setup
-- 🟡 👤 ___________ **[M]** Stateless, read-only LangChain `ChatOpenAI` workers (`AgentWorkers`, `OperatorDecider`) via Cloudflare AI Gateway or OpenAI-compatible endpoint; role tiers `extraction | vision | operator`; Neon owns durable execution state. [Agent workers package](../packages/agent-workers/package.json) · [Environment example](../.env.example)
-- ⬜ **[M]** Delegation contract (task_id, incident_id, role, objective, StatePin, evidence refs, budget, deadline, output schema)
-- ⬜ **[M]** `tickTasks` with `FOR UPDATE SKIP LOCKED`; stale-pin results kept for audit, not executed
-- ⬜ **[M]** Bounded delegation (max depth, parallelism, timeout → escalate)
-- ⬜ **[M]** `model_usage` capture (model, tokens, cost, ms) on every call
-- ⬜ **[M]** Quarantined extraction helper (narrow schema, spotlighting/datamarking of untrusted text)
+- ✅ 👤 ___Abhishek________ **[M]** Stateless, read-only LangChain `ChatOpenAI` workers (`AgentWorkers`, `OperatorDecider`) via Cloudflare AI Gateway or OpenAI-compatible endpoint; role tiers `extraction | vision | operator`; Neon owns durable execution state. [Agent workers package](../packages/agent-workers/package.json) · [Environment example](../.env.example)
+- ✅ **[M]** Delegation contract (task_id, incident_id, role, objective, StatePin, evidence refs, budget, deadline, output schema)
+- 🟡 **[M]** `tickTasks` with `FOR UPDATE SKIP LOCKED`; stale-pin results kept for audit, not executed *(interface & executor done; Postgres `TaskStore` pending)*
+- ✅ **[M]** Bounded delegation (max depth, parallelism, timeout → escalate)
+- ✅ **[M]** `model_usage` capture (model, tokens, cost, ms) on every call
+- ✅ **[M]** Quarantined extraction helper (narrow schema, spotlighting/datamarking of untrusted text)
 
 ### 3B — Document Pipeline (new; feeds S3, S4, S8, S9)
-- ⬜ 👤 ___________ **[M]** Layout parse with page + bbox (Docling or Marker sidecar), cached by content hash
-- ⬜ **[M]** Spec compiler: CSI-structured spec → typed `Requirement[]` with verbatim quotes; human approves the rule set once
-- ⬜ **[M]** Submittal value extraction ×2 with disagreement → `CONFLICTING_SOURCES`
+- 🟡 👤 ___Abhishek________ **[M]** Layout parse with page + bbox (Docling or Marker sidecar), cached by content hash *(cache & `StubLayoutParser` done; Docling/Marker sidecar pending)*
+- ✅ **[M]** Spec compiler: CSI-structured spec → typed `Requirement[]` with verbatim quotes; human approves the rule set once
+- ✅ **[M]** Submittal value extraction ×2 with disagreement → `CONFLICTING_SOURCES`
 - ⬜ **[S]** Vision curve digitizer: axis calibration + polyline ×3–5, median, PCHIP fit, RMS vs ground truth
 - ⬜ **[S]** `pactline_ingest_document` as a long-running MCP task
 
