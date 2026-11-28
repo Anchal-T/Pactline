@@ -1,0 +1,24 @@
+{
+  "_note": "SYNTHETIC SANDBOX EVENT — fixture only",
+  "event_id": "353fbfd8-cbe2-5416-9e06-ef907ef2e614",
+  "type": "FollowUpDue",
+  "project_id": "proj-hvac-demo-001",
+  "subject_type": "Incident",
+  "subject_id": "inc-demo-pump-001",
+  "occurred_at": "2026-12-18T09:05:00Z",
+  "received_at": "2026-12-18T09:05:00Z",
+  "source": "sandbox-review-timer",
+  "source_event_id": "pump-follow-up-002",
+  "evidence_ref": "sandbox://events/pump-follow-up-002",
+  "correlation_id": "inc-demo-pump-001",
+  "payload": {
+    "po_line_id": "pol-pump-001",
+    "awaiting_supplier_reply": true,
+    "follow_up_attempts": 1,
+    "max_follow_up_attempts": 1
+  },
+  "fixture": {
+    "expected_ingress": "stored",
+    "expected_behavior": "Escalate the original-supplier blocker to the procurement manager. Keep the incident owned and schedule another review."
+  }
+}

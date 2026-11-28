@@ -1,0 +1,37 @@
+{
+  "_note": "SYNTHETIC SANDBOX EVENT — fixture only",
+  "event_id": "e61e15af-ca5d-5cf3-bfe9-d1a277808796",
+  "type": "OfferReceived",
+  "project_id": "proj-hvac-demo-001",
+  "subject_type": "SupplierOffer",
+  "subject_id": "offer-demo-pump-a",
+  "occurred_at": "2026-12-18T10:00:00Z",
+  "received_at": "2026-12-18T10:00:00Z",
+  "source": "sandbox-vendor-quote",
+  "source_event_id": "offer-demo-pump-a-v1",
+  "evidence_ref": "sandbox://quotes/offer-demo-pump-a/v1",
+  "correlation_id": "inc-demo-pump-001",
+  "payload": {
+    "offer_id": "offer-demo-pump-a",
+    "offer_rev": 1,
+    "candidate": "A",
+    "supplier_id": "supplier-demo-recovery-a",
+    "product_config_id": "cfg-bg-e1510-125bc-950-1750",
+    "for_po_line_id": "pol-pump-001",
+    "quantity": 2,
+    "price": {
+      "total": 8400,
+      "currency": "USD"
+    },
+    "quoted_arrival_date": "2026-12-28",
+    "expires_at": "2026-12-22T16:00:00Z",
+    "technical_notes": "Offer uses the published Bell & Gossett curve. The selected motor and site-specific engineering evidence are pending."
+  },
+  "fixture": {
+    "expected_ingress": "stored",
+    "expected_behavior": "Record the sandbox offer and the head-at-duty PASS. Keep overall technical compliance INCOMPLETE until selected motor and site evidence are verified.",
+    "expected_tainted_fields": [
+      "payload.quoted_arrival_date"
+    ]
+  }
+}

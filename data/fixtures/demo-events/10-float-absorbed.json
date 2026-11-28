@@ -1,0 +1,26 @@
+{
+  "_note": "SYNTHETIC SANDBOX EVENT — fixture only",
+  "event_id": "f0fee486-46d3-5037-beef-0f637ab80798",
+  "type": "VendorCommitmentChanged",
+  "project_id": "proj-hvac-demo-001",
+  "subject_type": "POLine",
+  "subject_id": "pol-pump-anchor-001",
+  "occurred_at": "2026-12-01T09:00:00Z",
+  "received_at": "2026-12-01T09:05:00Z",
+  "source": "sandbox-vendor-email",
+  "source_event_id": "anchor-forecast-001-v2",
+  "evidence_ref": "sandbox://events/anchor-forecast-001/v2",
+  "correlation_id": "demo-anchor-float",
+  "payload": {
+    "previous_arrival_date": "2026-12-04",
+    "revised_arrival_date": "2026-12-09",
+    "reason": "Anchor kit pickup moved to the next carrier run"
+  },
+  "fixture": {
+    "expected_ingress": "stored",
+    "expected_behavior": "Classify as FLOAT_ABSORBED. The one-day readiness buffer moves site prep to December 10 and consumes three workdays of float without moving project finish.",
+    "expected_tainted_fields": [
+      "payload.revised_arrival_date"
+    ]
+  }
+}

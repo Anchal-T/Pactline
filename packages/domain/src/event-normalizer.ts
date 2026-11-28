@@ -60,6 +60,7 @@ const UNTRUSTED_FIELD_PATTERNS: Record<string, string[]> = {
   OfferReceived: [
     "payload.price",
     "payload.lead_time",
+    "payload.quoted_arrival_date",
     "payload.stock_status",
     "payload.technical_notes",
   ],

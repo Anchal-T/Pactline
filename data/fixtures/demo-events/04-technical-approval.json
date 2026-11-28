@@ -1,0 +1,34 @@
+{
+  "_note": "SYNTHETIC SANDBOX EVENT — fixture only",
+  "event_id": "466de2c4-e608-51f1-b184-180cf3b1fd9d",
+  "type": "ApprovalGranted",
+  "project_id": "proj-hvac-demo-001",
+  "subject_type": "Approval",
+  "subject_id": "approval-demo-pump-technical",
+  "occurred_at": "2026-12-18T13:00:00Z",
+  "received_at": "2026-12-18T13:00:00Z",
+  "source": "sandbox-human-approval",
+  "source_event_id": "approval-demo-pump-technical-v1",
+  "evidence_ref": "sandbox://approvals/approval-demo-pump-technical",
+  "correlation_id": "inc-demo-pump-001",
+  "payload": {
+    "approval_id": "approval-demo-pump-technical",
+    "kind": "TECHNICAL",
+    "actor_role": "ENGINEER_OF_RECORD",
+    "actor_id": "sandbox-engineer-of-record",
+    "incident_id": "inc-demo-pump-001",
+    "product_config_id": "cfg-bg-e1510-125bc-950-1750",
+    "offer_id": "offer-demo-pump-a",
+    "pins": {
+      "requirement_rev": "req-pump-chw-001@1",
+      "config_rev": "cfg-bg-e1510-125bc-950-1750@1",
+      "offer_rev": "offer-demo-pump-a@1",
+      "plan_rev": "plan-demo-pump-recovery@1"
+    },
+    "expires_at": "2026-12-22T16:00:00Z"
+  },
+  "fixture": {
+    "expected_ingress": "stored",
+    "expected_behavior": "Treat the record as a simulated human decision. Keep execution blocked when independent mandatory technical evidence is incomplete. Check the pinned revisions and expiry."
+  }
+}

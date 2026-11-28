@@ -1,0 +1,26 @@
+{
+  "_note": "SYNTHETIC SANDBOX EVENT — fixture only",
+  "event_id": "748a65eb-dbe2-5023-8cbd-6574627c1484",
+  "type": "VendorCommitmentChanged",
+  "project_id": "proj-hvac-demo-001",
+  "subject_type": "POLine",
+  "subject_id": "pol-pump-001",
+  "occurred_at": "2026-12-13T09:00:00Z",
+  "received_at": "2026-12-15T09:05:00Z",
+  "source": "sandbox-vendor-email",
+  "source_event_id": "pump-forecast-001-v1",
+  "evidence_ref": "sandbox://events/pump-forecast-001/v1",
+  "correlation_id": "inc-demo-pump-001",
+  "payload": {
+    "previous_arrival_date": "2026-12-28",
+    "revised_arrival_date": "2027-01-04",
+    "reason": "Earlier production estimate delivered late"
+  },
+  "fixture": {
+    "expected_ingress": "out_of_order",
+    "expected_behavior": "Keep the version 2 commitment and January 7 forecast. The late version 1 message must not regress the forecast or trigger a second action.",
+    "expected_tainted_fields": [
+      "payload.revised_arrival_date"
+    ]
+  }
+}
