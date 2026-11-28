@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type {
   AcceptanceId,
   ActivityId,
@@ -71,6 +71,98 @@ export class ProcurementRepo {
     private readonly db: DB,
     private readonly clock: () => Date = () => new Date(),
   ) {}
+
+  async getVendor(id: VendorId) {
+    const [row] = await this.db.select().from(vendors).where(eq(vendors.id, id)).limit(1);
+    return row ?? null;
+  }
+
+  async listVendors(limit = 100) {
+    return this.db.select().from(vendors).orderBy(asc(vendors.name)).limit(limit);
+  }
+
+  async getEquipmentPackage(id: PackageId) {
+    const [row] = await this.db.select().from(equipmentPackages).where(eq(equipmentPackages.id, id)).limit(1);
+    return row ?? null;
+  }
+
+  async listEquipmentPackages(projectId: ProjectId) {
+    return this.db.select().from(equipmentPackages)
+      .where(eq(equipmentPackages.projectId, projectId))
+      .orderBy(asc(equipmentPackages.id));
+  }
+
+  async getMaterialNeed(id: MaterialNeedId) {
+    const [row] = await this.db.select().from(materialNeeds).where(eq(materialNeeds.id, id)).limit(1);
+    return row ?? null;
+  }
+
+  async listMaterialNeeds(projectId: ProjectId) {
+    return this.db.select().from(materialNeeds)
+      .where(eq(materialNeeds.projectId, projectId))
+      .orderBy(asc(materialNeeds.requiredUsableDate), asc(materialNeeds.id));
+  }
+
+  async getPurchaseOrder(id: PurchaseOrderId) {
+    const [row] = await this.db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id)).limit(1);
+    return row ?? null;
+  }
+
+  async listPurchaseOrders(projectId: ProjectId) {
+    return this.db.select().from(purchaseOrders)
+      .where(eq(purchaseOrders.projectId, projectId))
+      .orderBy(desc(purchaseOrders.createdAt));
+  }
+
+  async getPoLine(id: POLineId) {
+    const [row] = await this.db.select().from(poLines).where(eq(poLines.id, id)).limit(1);
+    return row ?? null;
+  }
+
+  async listPoLines(purchaseOrderId: PurchaseOrderId) {
+    return this.db.select().from(poLines)
+      .where(eq(poLines.poId, purchaseOrderId))
+      .orderBy(asc(poLines.id));
+  }
+
+  async listMilestones(poLineId: POLineId) {
+    return this.db.select().from(milestones)
+      .where(eq(milestones.poLineId, poLineId))
+      .orderBy(asc(milestones.plannedDate), asc(milestones.id));
+  }
+
+  async getReceipt(id: ReceiptId) {
+    const [row] = await this.db.select().from(receipts).where(eq(receipts.id, id)).limit(1);
+    return row ?? null;
+  }
+
+  async listReceipts(poLineId: POLineId) {
+    return this.db.select().from(receipts)
+      .where(eq(receipts.poLineId, poLineId))
+      .orderBy(desc(receipts.createdAt));
+  }
+
+  async getInspection(id: InspectionId) {
+    const [row] = await this.db.select().from(inspections).where(eq(inspections.id, id)).limit(1);
+    return row ?? null;
+  }
+
+  async listInspections(poLineId: POLineId) {
+    return this.db.select().from(inspections)
+      .where(eq(inspections.poLineId, poLineId))
+      .orderBy(desc(inspections.inspectedAt));
+  }
+
+  async getAcceptance(id: AcceptanceId) {
+    const [row] = await this.db.select().from(acceptances).where(eq(acceptances.id, id)).limit(1);
+    return row ?? null;
+  }
+
+  async listAcceptances(materialNeedId: MaterialNeedId) {
+    return this.db.select().from(acceptances)
+      .where(eq(acceptances.materialNeedId, materialNeedId))
+      .orderBy(desc(acceptances.acceptedAt));
+  }
 
   async upsertVendor(input: {
     id: VendorId;

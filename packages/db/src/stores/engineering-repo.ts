@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import type {
   EvidenceSourceId,
   OfferId,
@@ -290,6 +290,15 @@ export class EngineeringRepo {
     return row ?? null;
   }
 
+  async getRequirementSet(id: RequirementSetId) {
+    const [row] = await this.db
+      .select()
+      .from(requirementSets)
+      .where(eq(requirementSets.id, id))
+      .limit(1);
+    return row ?? null;
+  }
+
   async listRequirements(requirementSetId: RequirementSetId) {
     return this.db
       .select()
@@ -297,11 +306,100 @@ export class EngineeringRepo {
       .where(eq(requirements.requirementSetId, requirementSetId));
   }
 
+  async getRequirement(id: RequirementId) {
+    const [row] = await this.db
+      .select()
+      .from(requirements)
+      .where(eq(requirements.id, id))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async listComplianceFindings(input: {
+    requirementSetId?: RequirementSetId;
+    productConfigId?: ProductConfigId;
+    limit?: number;
+  } = {}) {
+    const predicate = and(
+      input.requirementSetId
+        ? eq(complianceFindings.requirementSetId, input.requirementSetId)
+        : undefined,
+      input.productConfigId
+        ? eq(complianceFindings.productConfigId, input.productConfigId)
+        : undefined,
+    );
+    return this.db
+      .select()
+      .from(complianceFindings)
+      .where(predicate)
+      .orderBy(desc(complianceFindings.createdAt), asc(complianceFindings.id))
+      .limit(Math.max(1, Math.min(input.limit ?? 100, 500)));
+  }
+
+  async getEvidenceSource(id: EvidenceSourceId) {
+    const [row] = await this.db
+      .select()
+      .from(evidenceSources)
+      .where(eq(evidenceSources.id, id))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async listEvidenceSources(limit = 100) {
+    return this.db
+      .select()
+      .from(evidenceSources)
+      .orderBy(desc(evidenceSources.retrievedAt), asc(evidenceSources.id))
+      .limit(Math.max(1, Math.min(limit, 500)));
+  }
+
+  async listRequirementSets(packageId: PackageId) {
+    return this.db
+      .select()
+      .from(requirementSets)
+      .where(eq(requirementSets.packageId, packageId))
+      .orderBy(desc(requirementSets.revision));
+  }
+
+  async listSupplierOffers(projectId: ProjectId) {
+    return this.db
+      .select()
+      .from(supplierOffers)
+      .where(eq(supplierOffers.projectId, projectId))
+      .orderBy(desc(supplierOffers.quotedAt));
+  }
+
+  async getSupplierOffer(id: OfferId) {
+    const [row] = await this.db
+      .select()
+      .from(supplierOffers)
+      .where(eq(supplierOffers.id, id))
+      .limit(1);
+    return row ?? null;
+  }
+
   async getProductConfiguration(id: ProductConfigId) {
     const [row] = await this.db
       .select()
       .from(productConfigurations)
       .where(eq(productConfigurations.id, id))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async listProductConfigurations(limit = 100) {
+    return this.db
+      .select()
+      .from(productConfigurations)
+      .orderBy(asc(productConfigurations.manufacturer), asc(productConfigurations.model))
+      .limit(Math.max(1, Math.min(limit, 500)));
+  }
+
+  async getComplianceFinding(id: string) {
+    const [row] = await this.db
+      .select()
+      .from(complianceFindings)
+      .where(eq(complianceFindings.id, id))
       .limit(1);
     return row ?? null;
   }
