@@ -102,12 +102,43 @@ ${layout.full_text}
 
 Return only the structured extraction as specified.`;
 
-    const { output, usage } = await extractWithAgreement(this.model, schema, prompt, 2);
+    // P1 #1: Run two independent extractions and match requirements individually by key
+    // so array reordering or a single differing item does not discard all agreed checks.
+    const [run1, run2] = await Promise.all([
+      invokeWithStructuredOutput(this.model, schema, prompt),
+      invokeWithStructuredOutput(this.model, schema, prompt),
+    ]);
+    const usage: ModelUsage[] = [run1.usage, run2.usage];
+
+    type RawReq = NonNullable<typeof run1.output.requirements>[number];
+    const norm = (s: string | undefined) => (s ?? "").trim().toLowerCase();
+    const reqKey = (r: RawReq) => `${norm(r.category)}::${norm(r.field)}::${norm(r.required)}`;
+    const reqEqual = (a: RawReq, b: RawReq) =>
+      norm(a.category) === norm(b.category) &&
+      norm(a.field) === norm(b.field) &&
+      norm(a.required) === norm(b.required) &&
+      norm(a.unit) === norm(b.unit) &&
+      norm(a.tolerance) === norm(b.tolerance) &&
+      Boolean(a.mandatory) === Boolean(b.mandatory) &&
+      norm(a.condition) === norm(b.condition);
+
+    const run2ByKey = new Map<string, RawReq>();
+    for (const r of run2.output.requirements ?? []) {
+      run2ByKey.set(reqKey(r), r);
+    }
+
+    const agreedReqs: RawReq[] = [];
+    for (const r1 of run1.output.requirements ?? []) {
+      const r2 = run2ByKey.get(reqKey(r1));
+      if (r2 && reqEqual(r1, r2)) {
+        agreedReqs.push(r1);
+      }
+    }
 
     // Convert to requirements with source refs
     const requirements: Requirement[] = [];
 
-    for (const req of output.requirements ?? []) {
+    for (const req of agreedReqs) {
       // Find excerpt in layout to get page + bbox
       const matches = findExcerpt(layout, req.excerpt ?? "");
 

@@ -92,24 +92,52 @@ class SeededRNG {
   }
 }
 
-/** Sample from PERT (beta) distribution using method of moments */
-function samplePERT(optimistic: number, mostLikely: number, pessimistic: number, rng: SeededRNG): number {
-  // PERT uses a modified beta distribution: mean = (o + 4m + p) / 6
-  const mean = (optimistic + 4 * mostLikely + pessimistic) / 6;
-  const range = pessimistic - optimistic;
+/** Sample a standard normal N(0, 1) variate using Box-Muller transform */
+function sampleStandardNormal(rng: SeededRNG): number {
+  const u1 = Math.max(1e-12, rng.next());
+  const u2 = rng.next();
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
 
+/** Sample from Gamma(shape, 1) using Marsaglia & Tsang's method (shape >= 1) */
+function sampleGamma(shape: number, rng: SeededRNG): number {
+  if (shape < 1) {
+    // Boost to shape + 1 and scale by U^(1/shape)
+    const u = Math.max(1e-12, rng.next());
+    return sampleGamma(shape + 1, rng) * Math.pow(u, 1 / shape);
+  }
+  const d = shape - 1 / 3;
+  const c = 1 / Math.sqrt(9 * d);
+  while (true) {
+    let x: number;
+    let v: number;
+    do {
+      x = sampleStandardNormal(rng);
+      v = 1 + c * x;
+    } while (v <= 0);
+    v = v * v * v;
+    const u = rng.next();
+    if (u < 1 - 0.0331 * (x * x) * (x * x)) return d * v;
+    if (Math.log(Math.max(1e-12, u)) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v;
+  }
+}
+
+/** Sample from PERT (Beta) distribution: mean = (o + 4m + p) / 6, lambda = 4 */
+function samplePERT(optimistic: number, mostLikely: number, pessimistic: number, rng: SeededRNG): number {
+  const range = pessimistic - optimistic;
   if (range <= 0) return mostLikely;
 
-  // Standard deviation using PERT formula: σ = (p - o) / 6
-  const stdDev = range / 6;
+  const clampedMode = Math.min(pessimistic, Math.max(optimistic, mostLikely));
+  // Standard PERT (lambda = 4): alpha + beta = 6, E[X] = (o + 4m + p) / 6
+  const alpha = 1 + (4 * (clampedMode - optimistic)) / range;
+  const beta = 1 + (4 * (pessimistic - clampedMode)) / range;
 
-  // Alpha and beta parameters for beta distribution
-  const alpha = ((mean - optimistic) / range) * (((mean - optimistic) * (pessimistic - mean)) / (stdDev * stdDev) - 1);
-  const beta = (alpha * (pessimistic - mean)) / (mean - optimistic);
+  const g1 = sampleGamma(alpha, rng);
+  const g2 = sampleGamma(beta, rng);
+  const sum = g1 + g2;
+  if (sum <= 0) return clampedMode;
 
-  // Beta distribution sample using inverse transform + Box-Muller approximation
-  // For simplicity, use triangular as PERT approximation (acceptable for schedule simulation)
-  return sampleTriangular(optimistic, mostLikely, pessimistic, rng);
+  return optimistic + range * (g1 / sum);
 }
 
 /** Sample from triangular distribution */
