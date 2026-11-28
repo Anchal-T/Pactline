@@ -250,16 +250,18 @@ export class IncidentStateMachine {
    * Returns a transition result for audit logging
    *
    * Note: This is a pure function - actual DB update must be done by caller
-   * with optimistic locking (WHERE version = expectedVersion)
+   * with optimistic locking (WHERE version = expectedVersion).
+   * `now` stamps the audit entry; pass the runtime Clock's time so VirtualClock runs stay deterministic.
    */
   static transition(
     state: IncidentState,
-    request: TransitionRequest
+    request: TransitionRequest,
+    now: Date = new Date()
   ): TransitionResult {
     const audit = {
       actor: request.actor,
       reason: request.reason,
-      timestamp: new Date(),
+      timestamp: now,
       metadata: request.metadata,
     };
 

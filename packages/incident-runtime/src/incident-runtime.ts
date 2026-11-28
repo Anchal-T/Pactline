@@ -156,12 +156,15 @@ export class IncidentRuntime {
   /**
    * Review every due incident (next_review_at <= now) this worker can lease. The decider runs outside any
    * transaction; its decision is checked against the state machine and invariant 8, then committed only if the
-   * lease is still held and the row unchanged. Actions are queued after that commit, never by a stale worker.
+   * lease is still held and the row unchanged. The commit records the decided actions with the incident update;
+   * they reach the gateway through the drain, which first picks up any a crashed worker committed but never queued.
    */
   async tickIncidents(): Promise<number> {
     const s = this.requireScheduler();
+    await this.drainActions(s);
     const leases = await s.incidents.claimDue(s.workerId, this.clock.now(), this.policy.leaseMs, this.policy.batchSize);
     for (const lease of leases) await this.review(s, lease);
+    await this.drainActions(s);
     return leases.length;
   }
 
@@ -203,15 +206,28 @@ export class IncidentRuntime {
       plan = await this.preauthorize(s, incident, plan, now);
     }
 
-    const outcome = await s.incidents.commit(lease, this.clock.now(), plan.next);
+    const outcome = await s.incidents.commit(lease, this.clock.now(), plan.next, plan.actions);
     if (outcome === "LEASE_LOST") {
       await this.audit(s, "STALE_COMMIT", incident.id, `Lease ${lease.token} lost before commit; decision discarded`);
       return;
     }
     for (const [kind, detail] of plan.notes) await this.audit(s, kind, incident.id, detail);
-    for (const action of plan.actions) {
-      const queued = await s.outbox.enqueue(action);
-      if (!queued.authorized) await this.audit(s, "ACTION_REJECTED", incident.id, `${action.action_id}: ${queued.error}`);
+  }
+
+  /**
+   * Hand committed actions to the gateway until none are pending. Safe to repeat and to run from several workers:
+   * action_ids are deterministic, so a second enqueue of the same action returns the existing receipt.
+   */
+  private async drainActions(s: SchedulerDeps): Promise<void> {
+    for (;;) {
+      const pending = await s.incidents.pendingActions(this.policy.batchSize);
+      for (const action of pending) {
+        const queued = await s.outbox.enqueue(action);
+        const handoff = { receipt_id: queued.receipt_id ?? null, error: queued.authorized ? null : (queued.error ?? "Rejected") };
+        const first = await s.incidents.markHandedOff(action.action_id, this.clock.now(), handoff);
+        if (first && handoff.error) await this.audit(s, "ACTION_REJECTED", action.incident_id ?? action.action_id, `${action.action_id}: ${handoff.error}`);
+      }
+      if (pending.length < this.policy.batchSize) return;
     }
   }
 
@@ -233,7 +249,7 @@ export class IncidentRuntime {
         }
         case "TRANSITION": {
           const { request } = decision;
-          const result = IncidentStateMachine.transition({ ...incident, version }, request);
+          const result = IncidentStateMachine.transition({ ...incident, version }, request, now);
           if (!result.success) return result.error ?? "Transition rejected";
           return {
             next: {

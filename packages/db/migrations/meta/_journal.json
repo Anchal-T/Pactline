@@ -36,6 +36,13 @@
       "when": 1795877000000,
       "tag": "0004_record_history",
       "breakpoints": false
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795878000000,
+      "tag": "0005_scheduler_leases",
+      "breakpoints": true
     }
   ]
 }

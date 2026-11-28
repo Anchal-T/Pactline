@@ -1,6 +1,7 @@
 export * from "./event-store.js";
 export * from "./gateway-store.js";
 export * from "./result-cache.js";
+export * from "./scheduler-store.js";
 export * from "./schedule-repo.js";
 export * from "./procurement-repo.js";
 export * from "./engineering-repo.js";

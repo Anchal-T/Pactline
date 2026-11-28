@@ -73,10 +73,13 @@ export const incidents = pgTable(
       .notNull()
       .default(sql`'[]'::jsonb`),
     leaseHolder: text("lease_holder"),
+    leaseToken: uuid("lease_token"),
     leaseExpiresAt: timestamp("lease_expires_at", {
       withTimezone: true,
       mode: "date",
     }),
+    followUps: integer("follow_ups").notNull().default(0),
+    reviewFailures: integer("review_failures").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),
@@ -102,6 +105,8 @@ export const incidents = pgTable(
       sql`${t.status} IN ('DETECTED', 'INVESTIGATING', 'PLANNING', 'AWAITING_APPROVAL', 'EXECUTING', 'MITIGATED', 'VERIFYING', 'CLOSED', 'ESCALATED', 'BLOCKED')`,
     ),
     check("incidents_required_qty_chk", sql`${t.requiredQty} >= 0`),
+    check("incidents_follow_ups_chk", sql`${t.followUps} >= 0`),
+    check("incidents_review_failures_chk", sql`${t.reviewFailures} >= 0`),
     check("incidents_accepted_qty_chk", sql`${t.acceptedQty} >= 0`),
     check(
       "incidents_closure_invariant_chk",

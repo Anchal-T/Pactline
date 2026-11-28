@@ -652,6 +652,12 @@ describe("IncidentStateMachine", () => {
       expect(result.audit.metadata).toEqual({ trigger: "vendor_delay" });
     });
 
+    it("stamps the audit entry with an injected time", () => {
+      const at = new Date("2026-12-14T09:00:00Z");
+      const result = IncidentStateMachine.transition(createIncidentState(), { to: "INVESTIGATING", actor: "operator-1", reason: "r", owner: "operator-1", next_action: "a", next_review_at: at }, at);
+      expect(result.audit.timestamp).toBe(at);
+    });
+
     it("should include audit data even on failure", () => {
       const state = createIncidentState();
       const request: TransitionRequest = {

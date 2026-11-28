@@ -143,10 +143,17 @@ export const specialistTasks = pgTable(
       .$type<Record<string, unknown>>()
       .notNull(),
     statePin: jsonb("state_pin").$type<Record<string, unknown>>().notNull(),
+    /** Subject whose subject_revisions row the state pin is checked against on completion. */
+    pinSubjectId: text("pin_subject_id"),
     status: text("status").notNull(),
+    version: integer("version").notNull().default(1),
     attemptCount: integer("attempt_count").notNull().default(0),
     maxAttempts: integer("max_attempts").notNull().default(3),
+    availableAt: timestamp("available_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
     leaseHolder: text("lease_holder"),
+    leaseToken: uuid("lease_token"),
     leaseExpiresAt: timestamp("lease_expires_at", {
       withTimezone: true,
       mode: "date",
@@ -171,6 +178,36 @@ export const specialistTasks = pgTable(
       "specialist_tasks_status_chk",
       sql`${t.status} IN ('PENDING', 'CLAIMED', 'COMPLETED', 'STALE', 'FAILED', 'CANCELLED')`,
     ),
+  ],
+);
+
+/** Transactional outbox between an incident commit and ExecutionGateway.enqueue. */
+export const incidentActionProposals = pgTable(
+  "incident_action_proposals",
+  {
+    actionId: text("action_id").primaryKey(),
+    incidentId: text("incident_id")
+      .notNull()
+      .references(() => incidents.id, { onDelete: "cascade" }),
+    proposal: jsonb("proposal").$type<Record<string, unknown>>().notNull(),
+    recordedAt: timestamp("recorded_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull(),
+    handedOffAt: timestamp("handed_off_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    receiptId: uuid("receipt_id").references(() => actionReceipts.receiptId, {
+      onDelete: "set null",
+    }),
+    error: text("error"),
+  },
+  (t) => [
+    index("incident_action_proposals_incident_id_idx").on(t.incidentId),
+    index("incident_action_proposals_pending_idx")
+      .on(t.recordedAt, t.actionId)
+      .where(sql`${t.handedOffAt} IS NULL`),
   ],
 );
 

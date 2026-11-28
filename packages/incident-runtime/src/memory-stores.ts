@@ -1,9 +1,10 @@
 import { IncidentStateMachine, type IncidentId, type StatePin } from "@pactline/domain";
-import type { ActionReceipt, MemoryGatewayStore } from "@pactline/execution-gateway";
+import type { ActionProposal, ActionReceipt, MemoryGatewayStore } from "@pactline/execution-gateway";
 import {
   type AuditEntry,
   type AuditSink,
   type CommitOutcome,
+  type Handoff,
   type IncidentQueue,
   type IncidentRecord,
   type Lease,
@@ -61,8 +62,15 @@ export class MemoryLeaseTable<T extends { id: string }> {
   }
 }
 
+interface ActionRow {
+  action: ActionProposal;
+  handoff: (Handoff & { at: Date }) | null;
+}
+
 export class MemoryIncidentQueue implements IncidentQueue {
   private readonly table = new MemoryLeaseTable<IncidentRecord>();
+  /** The proposals table: insertion order is recording order, and a repeated action_id is ignored. */
+  readonly actions = new Map<string, ActionRow>();
 
   put(incident: IncidentRecord): void {
     this.assertInvariant8(incident);
@@ -84,9 +92,24 @@ export class MemoryIncidentQueue implements IncidentQueue {
     );
   }
 
-  async commit(lease: Lease<IncidentRecord>, now: Date, next: IncidentRecord): Promise<CommitOutcome> {
+  async commit(lease: Lease<IncidentRecord>, now: Date, next: IncidentRecord, actions: readonly ActionProposal[]): Promise<CommitOutcome> {
     this.assertInvariant8(next);
-    return this.table.commit(lease, now, next);
+    const outcome = this.table.commit(lease, now, next);
+    if (outcome === "COMMITTED") {
+      for (const action of actions) if (!this.actions.has(action.action_id)) this.actions.set(action.action_id, { action: structuredClone(action), handoff: null });
+    }
+    return outcome;
+  }
+
+  async pendingActions(limit: number): Promise<ActionProposal[]> {
+    return [...this.actions.values()].filter((r) => !r.handoff).slice(0, limit).map((r) => structuredClone(r.action));
+  }
+
+  async markHandedOff(actionId: string, now: Date, handoff: Handoff): Promise<boolean> {
+    const row = this.actions.get(actionId);
+    if (!row || row.handoff) return false;
+    row.handoff = { ...handoff, at: now };
+    return true;
   }
 
   /** The DB CHECK constraint (invariant 8), mirrored. */

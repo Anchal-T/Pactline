@@ -131,6 +131,63 @@ describe("tickOutbox crash recovery", () => {
   });
 });
 
+/** An outbox for a process that dies during enqueue: `after` decides whether the receipt was written first. */
+const dyingOnEnqueue = (inner: Outbox, after: boolean): Outbox => ({
+  authorize: (p) => inner.authorize(p),
+  enqueue: async (p) => {
+    if (after) await inner.enqueue(p);
+    return new Promise(() => {});
+  },
+  tickOutbox: (n) => inner.tickOutbox(n),
+});
+
+describe("action handoff outbox", () => {
+  it.each([
+    ["before enqueue", false],
+    ["after enqueue, before the handoff stamp", true],
+  ])("recovers actions committed by a worker that crashed %s, writing once", async (_when, receiptWritten) => {
+    const w = world();
+    w.incidents.put(incident());
+    void w.worker("w1", dyingOnEnqueue(w.gateway(), receiptWritten)).tickIncidents();
+    await vi.waitFor(() => expect(w.incidents.get(INC)?.follow_ups).toBe(1));
+    expect(w.receipts()).toHaveLength(receiptWritten ? 1 : 0);
+    expect(await w.incidents.pendingActions(10)).toHaveLength(1);
+
+    const w2 = w.worker("w2");
+    expect(await w2.tickIncidents()).toBe(0);
+    await w2.tickOutbox();
+    expect(w.receipts().map((r) => [r.action_id, r.status])).toEqual([[`${INC}:follow-up:1`, "CONFIRMED"]]);
+    expect(w.sandbox.getOperationCount()).toBe(1);
+    expect(await w.incidents.pendingActions(10)).toHaveLength(0);
+  });
+
+  it("keeps one receipt when the same actions are drained twice", async () => {
+    const w = world();
+    w.incidents.put(incident());
+    void w.worker("w1", dyingOnEnqueue(w.gateway(), false)).tickIncidents();
+    await vi.waitFor(() => expect(w.incidents.get(INC)?.follow_ups).toBe(1));
+
+    const [action] = await w.incidents.pendingActions(10);
+    await Promise.all([w.worker("w2").tickIncidents(), w.worker("w3").tickIncidents()]);
+    await w.gateway().enqueue(action!);
+    await w.worker("w2").tickOutbox();
+    await w.worker("w2").tickIncidents();
+    expect(w.receipts()).toHaveLength(1);
+    expect(w.sandbox.getOperationCount()).toBe(1);
+    expect(w.audit.entries).toEqual([]);
+  });
+
+  it("records nothing for handoff when the commit loses its lease", async () => {
+    const q = new MemoryIncidentQueue();
+    q.put(incident());
+    const [lease] = await q.claimDue("w1", new Date(T0), LEASE_MS, 1);
+    q.put(incident({ next_action: "Human edit" }));
+    const action = { ...followUp, action_id: `${INC}:follow-up:1`, incident_id: INC };
+    expect(await q.commit(lease!, new Date(T0), incident({ follow_ups: 1 }), [action])).toBe("LEASE_LOST");
+    expect(await q.pendingActions(10)).toEqual([]);
+  });
+});
+
 describe("leases", () => {
   it("lets another worker reclaim an expired lease and rejects the stale worker's commit", async () => {
     let release!: () => void;
@@ -156,7 +213,7 @@ describe("leases", () => {
     q.put(incident());
     const [lease] = await q.claimDue("w1", new Date(T0), LEASE_MS, 1);
     q.put(incident({ next_action: "Human edit" }));
-    expect(await q.commit(lease!, new Date(T0), incident({ next_action: "Worker decision" }))).toBe("LEASE_LOST");
+    expect(await q.commit(lease!, new Date(T0), incident({ next_action: "Worker decision" }), [])).toBe("LEASE_LOST");
     expect(q.get(INC)?.next_action).toBe("Human edit");
   });
 

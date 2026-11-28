@@ -19,6 +19,12 @@ import type { ActionProposal, ActionReceipt, ExecutionGateway } from "@pactline/
  * Zero rows updated means the lease expired, was taken over, or the row changed underneath: LEASE_LOST, and the
  * caller only writes an audit entry. Any other write to the row (a new revision, a human edit) bumps `version`.
  * `$now` is always the injected Clock's time, never the database's, so VirtualClock tests stay deterministic.
+ *
+ * Action handoff (transactional outbox): an incident commit inserts its decided actions into a proposals table
+ * in the same transaction (INSERT ... ON CONFLICT (action_id) DO NOTHING), so a crash after the commit cannot
+ * lose them. Every tickIncidents drains rows WHERE handed_off_at IS NULL through ExecutionGateway.enqueue and then
+ * stamps handed_off_at. A crash between enqueue and the stamp only causes a second enqueue of the same action_id,
+ * which the gateway's idempotency key turns into the existing receipt.
  */
 
 export const pinsMatch = (a: StatePin, b: StatePin): boolean => canonicalJson(a) === canonicalJson(b);
@@ -48,8 +54,21 @@ export type IncidentRecord = Omit<IncidentState, "id" | "version"> & {
 export interface IncidentQueue {
   /** Due: status <> 'CLOSED' AND next_review_at <= $now, oldest first. */
   claimDue(owner: string, now: Date, leaseMs: number, limit: number): Promise<Lease<IncidentRecord>[]>;
-  /** CAS as above. `next` must satisfy the invariant-8 CHECK constraint, or the transaction fails. */
-  commit(lease: Lease<IncidentRecord>, now: Date, next: IncidentRecord): Promise<CommitOutcome>;
+  /**
+   * CAS as above, recording `actions` for handoff in the same transaction. `next` must satisfy the invariant-8
+   * CHECK constraint, or the transaction fails and nothing is recorded.
+   */
+  commit(lease: Lease<IncidentRecord>, now: Date, next: IncidentRecord, actions: readonly ActionProposal[]): Promise<CommitOutcome>;
+  /** Committed actions not yet handed to the gateway, oldest first. Includes ones left by a crashed worker. */
+  pendingActions(limit: number): Promise<ActionProposal[]>;
+  /** Stamps the handoff. False when another worker stamped it first. */
+  markHandedOff(actionId: string, now: Date, handoff: Handoff): Promise<boolean>;
+}
+
+/** What the gateway said when the action was handed over: the receipt it queued, or why it refused. */
+export interface Handoff {
+  receipt_id: string | null;
+  error: string | null;
 }
 
 export type TaskStatus = "QUEUED" | "RUNNING" | "COMPLETED" | "STALE" | "FAILED";
