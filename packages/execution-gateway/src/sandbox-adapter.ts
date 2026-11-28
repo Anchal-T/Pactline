@@ -20,6 +20,9 @@ export interface FaultConfig {
 
   // Simulate uncertain outcome
   uncertain?: boolean;
+
+  // Simulate an external system that cannot be queried during reconcile
+  reconcileFails?: boolean;
 }
 
 /**
@@ -29,6 +32,9 @@ interface SandboxOperation {
   idempotency_key: string;
   external_id: string;
   action_type: string;
+  /** Outbound messages go only to the destination and template the gateway checked. */
+  recipient: string | null;
+  template_id: string | null;
   arguments: Record<string, unknown>;
   executed_at: Date;
 }
@@ -80,6 +86,8 @@ export class SandboxExternalAdapter implements ExternalAdapter {
       idempotency_key: action.idempotency_key,
       external_id: externalId,
       action_type: action.action_type,
+      recipient: action.recipient,
+      template_id: action.template_id,
       arguments: action.arguments,
       executed_at: new Date(),
     };
@@ -87,8 +95,6 @@ export class SandboxExternalAdapter implements ExternalAdapter {
     this.operations.set(action.idempotency_key, operation);
 
     // Log the simulated operation
-    console.log(`[SANDBOX] Executed ${action.action_type}: ${externalId}`);
-
     // Simulate crash after write (for testing reconciliation)
     if (this.faultConfig.crashAfterWrite) {
       // In real scenario, process would crash here
@@ -106,12 +112,11 @@ export class SandboxExternalAdapter implements ExternalAdapter {
     const operation = this.operations.get(idempotencyKey);
 
     if (operation) {
-      console.log(`[SANDBOX] Reconciled ${idempotencyKey} -> ${operation.external_id}`);
       return operation.external_id;
     }
 
-    // Check if this is a truly uncertain case (simulated)
-    if (this.faultConfig.uncertain && Math.random() < 0.5) {
+    // Deterministic: the external system cannot be queried
+    if (this.faultConfig.reconcileFails) {
       throw new Error("Cannot verify external state");
     }
 
