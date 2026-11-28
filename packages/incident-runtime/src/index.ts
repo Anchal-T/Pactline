@@ -1,8 +1,9 @@
-// IncidentRuntime — four stateless ticks driven by injected Clock
+// IncidentRuntime — four stateless ticks driven by an injected Clock
 // ingestEvent: normalize + write event, trigger incident rules
-// tickIncidents: advance open incidents (dispatch operator decisions)
-// tickTasks: collect completed specialist task results
+// tickIncidents: review due incidents through the decider (lease + CAS commit)
+// tickTasks: run specialist tasks; drifted or lease-lost results are audit-only
 // tickOutbox: flush pending action_receipts via ExecutionGateway
-// Clock interface: real time in prod, VirtualClock in eval harness
 
 export * from "./incident-runtime.js";
+export * from "./ports.js";
+export * from "./memory-stores.js";

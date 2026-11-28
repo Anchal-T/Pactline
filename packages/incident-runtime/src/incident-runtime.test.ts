@@ -106,17 +106,9 @@ describe("IncidentRuntime", () => {
     });
   });
 
-  describe("Placeholder methods", () => {
-    it("tickIncidents should throw not implemented", async () => {
-      await expect(runtime.tickIncidents()).rejects.toThrow("Not implemented - Phase 3D");
-    });
-
-    it("tickTasks should throw not implemented", async () => {
-      await expect(runtime.tickTasks()).rejects.toThrow("Not implemented - Phase 3A");
-    });
-
-    it("tickOutbox should throw not implemented", async () => {
-      await expect(runtime.tickOutbox()).rejects.toThrow("Not implemented - Phase 2E");
+  describe("ticks without scheduler wiring", () => {
+    it.each(["tickIncidents", "tickTasks", "tickOutbox"] as const)("%s rejects", async (tick) => {
+      await expect(runtime[tick]()).rejects.toThrow("without scheduler dependencies");
     });
   });
 });
